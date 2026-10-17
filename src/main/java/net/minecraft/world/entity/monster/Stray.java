@@ -1,0 +1,63 @@
+package net.minecraft.world.entity.monster;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.projectile.AbstractArrow;
+import net.minecraft.world.entity.projectile.Arrow;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.level.block.Blocks;
+
+public class Stray extends AbstractSkeleton {
+   public Stray(EntityType<? extends Stray> param0, Level param1) {
+      super(param0, param1);
+   }
+
+   public static boolean checkStraySpawnRules(EntityType<Stray> param0, ServerLevelAccessor param1, MobSpawnType param2, BlockPos param3, RandomSource param4) {
+      BlockPos var5 = param3;
+
+      do {
+         var5 = var5.above();
+      } while (param1.getBlockState(var5).is(Blocks.POWDER_SNOW));
+
+      return checkMonsterSpawnRules(param0, param1, param2, param3, param4) && (param2 == MobSpawnType.SPAWNER || param1.canSeeSky(var5.below()));
+   }
+
+   @Override
+   protected SoundEvent getAmbientSound() {
+      return SoundEvents.STRAY_AMBIENT;
+   }
+
+   @Override
+   protected SoundEvent getHurtSound(DamageSource param0) {
+      return SoundEvents.STRAY_HURT;
+   }
+
+   @Override
+   protected SoundEvent getDeathSound() {
+      return SoundEvents.STRAY_DEATH;
+   }
+
+   @Override
+   SoundEvent getStepSound() {
+      return SoundEvents.STRAY_STEP;
+   }
+
+   @Override
+   protected AbstractArrow getArrow(ItemStack param0, float param1) {
+      AbstractArrow var3 = super.getArrow(param0, param1);
+      if (var3 instanceof Arrow) {
+         ((Arrow)var3).addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 600));
+      }
+
+      return var3;
+   }
+}

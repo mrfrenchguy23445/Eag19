@@ -1,0 +1,53 @@
+package net.minecraft.network.protocol.game;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import java.util.List;
+import java.util.Optional;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.protocol.Packet;
+
+public class ServerboundEditBookPacket implements Packet<ServerGamePacketListener> {
+   public static final int MAX_BYTES_PER_CHAR = 4;
+   private static final int TITLE_MAX_CHARS = 128;
+   private static final int PAGE_MAX_CHARS = 8192;
+   private static final int MAX_PAGES_COUNT = 200;
+   private final int slot;
+   private final List<String> pages;
+   private final Optional<String> title;
+
+   public ServerboundEditBookPacket(int param0, List<String> param1, Optional<String> param2) {
+      this.slot = param0;
+      this.pages = ImmutableList.copyOf(param1);
+      this.title = param2;
+   }
+
+   public ServerboundEditBookPacket(FriendlyByteBuf param0) {
+      this.slot = param0.readVarInt();
+      this.pages = param0.readCollection(FriendlyByteBuf.limitValue(Lists::newArrayListWithCapacity, 200), l_param0 -> l_param0.readUtf(8192));
+      this.title = param0.readOptional(l_param0 -> l_param0.readUtf(128));
+   }
+
+   @Override
+   public void write(FriendlyByteBuf param0) {
+      param0.writeVarInt(this.slot);
+      param0.writeCollection(this.pages, (l_param0, l_param1) -> l_param0.writeUtf(l_param1, 8192));
+      param0.writeOptional(this.title, (l_param0, l_param1) -> l_param0.writeUtf(l_param1, 128));
+   }
+
+   public void handle(ServerGamePacketListener param0) {
+      param0.handleEditBook(this);
+   }
+
+   public List<String> getPages() {
+      return this.pages;
+   }
+
+   public Optional<String> getTitle() {
+      return this.title;
+   }
+
+   public int getSlot() {
+      return this.slot;
+   }
+}

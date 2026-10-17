@@ -1,0 +1,64 @@
+package net.minecraft.network.protocol.game;
+
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.Vec3;
+
+public class ClientboundSetEntityMotionPacket implements Packet<ClientGamePacketListener> {
+   private final int id;
+   private final int xa;
+   private final int ya;
+   private final int za;
+
+   public ClientboundSetEntityMotionPacket(Entity param0) {
+      this(param0.getId(), param0.getDeltaMovement());
+   }
+
+   public ClientboundSetEntityMotionPacket(int param0, Vec3 param1) {
+      this.id = param0;
+      double var3 = 3.9;
+      double var5 = Mth.clamp(param1.x, -3.9, 3.9);
+      double var7 = Mth.clamp(param1.y, -3.9, 3.9);
+      double var9 = Mth.clamp(param1.z, -3.9, 3.9);
+      this.xa = (int)(var5 * 8000.0);
+      this.ya = (int)(var7 * 8000.0);
+      this.za = (int)(var9 * 8000.0);
+   }
+
+   public ClientboundSetEntityMotionPacket(FriendlyByteBuf param0) {
+      this.id = param0.readVarInt();
+      this.xa = param0.readShort();
+      this.ya = param0.readShort();
+      this.za = param0.readShort();
+   }
+
+   @Override
+   public void write(FriendlyByteBuf param0) {
+      param0.writeVarInt(this.id);
+      param0.writeShort(this.xa);
+      param0.writeShort(this.ya);
+      param0.writeShort(this.za);
+   }
+
+   public void handle(ClientGamePacketListener param0) {
+      param0.handleSetEntityMotion(this);
+   }
+
+   public int getId() {
+      return this.id;
+   }
+
+   public int getXa() {
+      return this.xa;
+   }
+
+   public int getYa() {
+      return this.ya;
+   }
+
+   public int getZa() {
+      return this.za;
+   }
+}

@@ -1,0 +1,59 @@
+package net.minecraft.world.level.levelgen.structure.templatesystem;
+
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import javax.annotation.Nullable;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.levelgen.Heightmap;
+
+public class GravityProcessor extends StructureProcessor {
+   public static final Codec<GravityProcessor> CODEC = RecordCodecBuilder.create(
+      param0 -> param0.group(
+            Heightmap.Types.CODEC.fieldOf("heightmap").orElse(Heightmap.Types.WORLD_SURFACE_WG).forGetter(l_param0 -> l_param0.heightmap),
+            Codec.INT.fieldOf("offset").orElse(0).forGetter(l_param0 -> l_param0.offset)
+         )
+         .apply(param0, GravityProcessor::new)
+   );
+   private final Heightmap.Types heightmap;
+   private final int offset;
+
+   public GravityProcessor(Heightmap.Types param0, int param1) {
+      this.heightmap = param0;
+      this.offset = param1;
+   }
+
+   @Nullable
+   @Override
+   public StructureTemplate.StructureBlockInfo processBlock(
+      LevelReader param0,
+      BlockPos param1,
+      BlockPos param2,
+      StructureTemplate.StructureBlockInfo param3,
+      StructureTemplate.StructureBlockInfo param4,
+      StructurePlaceSettings param5
+   ) {
+      Heightmap.Types var7;
+      if (param0 instanceof ServerLevel) {
+         if (this.heightmap == Heightmap.Types.WORLD_SURFACE_WG) {
+            var7 = Heightmap.Types.WORLD_SURFACE;
+         } else if (this.heightmap == Heightmap.Types.OCEAN_FLOOR_WG) {
+            var7 = Heightmap.Types.OCEAN_FLOOR;
+         } else {
+            var7 = this.heightmap;
+         }
+      } else {
+         var7 = this.heightmap;
+      }
+
+      int var8 = param0.getHeight(var7, param4.pos.getX(), param4.pos.getZ()) + this.offset;
+      int var9 = param3.pos.getY();
+      return new StructureTemplate.StructureBlockInfo(new BlockPos(param4.pos.getX(), var8 + var9, param4.pos.getZ()), param4.state, param4.nbt);
+   }
+
+   @Override
+   protected StructureProcessorType<?> getType() {
+      return StructureProcessorType.GRAVITY;
+   }
+}

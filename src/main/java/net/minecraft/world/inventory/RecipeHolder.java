@@ -1,0 +1,33 @@
+package net.minecraft.world.inventory;
+
+import java.util.Collections;
+import javax.annotation.Nullable;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.level.GameRules;
+import net.minecraft.world.level.Level;
+
+public interface RecipeHolder {
+   void setRecipeUsed(@Nullable Recipe<?> var1);
+
+   @Nullable
+   Recipe<?> getRecipeUsed();
+
+   default void awardUsedRecipes(Player param0) {
+      Recipe<?> var2 = this.getRecipeUsed();
+      if (var2 != null && !var2.isSpecial()) {
+         param0.awardRecipes(Collections.singleton(var2));
+         this.setRecipeUsed(null);
+      }
+   }
+
+   default boolean setRecipeUsed(Level param0, ServerPlayer param1, Recipe<?> param2) {
+      if (!param2.isSpecial() && param0.getGameRules().getBoolean(GameRules.RULE_LIMITED_CRAFTING) && !param1.getRecipeBook().contains(param2)) {
+         return false;
+      }
+
+      this.setRecipeUsed(param2);
+      return true;
+   }
+}

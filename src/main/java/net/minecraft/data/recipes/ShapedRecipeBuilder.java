@@ -1,0 +1,247 @@
+package net.minecraft.data.recipes;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.Map.Entry;
+import java.util.function.Consumer;
+import javax.annotation.Nullable;
+import net.minecraft.advancements.Advancement;
+import net.minecraft.advancements.AdvancementRewards;
+import net.minecraft.advancements.CriterionTriggerInstance;
+import net.minecraft.advancements.RequirementsStrategy;
+import net.minecraft.advancements.critereon.RecipeUnlockedTrigger;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.crafting.CraftingBookCategory;
+import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.RecipeSerializer;
+import net.minecraft.world.level.ItemLike;
+
+public class ShapedRecipeBuilder extends CraftingRecipeBuilder implements RecipeBuilder {
+   private final RecipeCategory category;
+   private final Item result;
+   private final int count;
+   private final List<String> rows = Lists.newArrayList();
+   private final Map<Character, Ingredient> key = Maps.newLinkedHashMap();
+   private final Advancement.Builder advancement = Advancement.Builder.advancement();
+   @Nullable
+   private String group;
+   private boolean showNotification = true;
+
+   public ShapedRecipeBuilder(RecipeCategory param0, ItemLike param1, int param2) {
+      this.category = param0;
+      this.result = param1.asItem();
+      this.count = param2;
+   }
+
+   public static ShapedRecipeBuilder shaped(RecipeCategory param0, ItemLike param1) {
+      return shaped(param0, param1, 1);
+   }
+
+   public static ShapedRecipeBuilder shaped(RecipeCategory param0, ItemLike param1, int param2) {
+      return new ShapedRecipeBuilder(param0, param1, param2);
+   }
+
+   public ShapedRecipeBuilder define(Character param0, TagKey<Item> param1) {
+      return this.define(param0, Ingredient.of(param1));
+   }
+
+   public ShapedRecipeBuilder define(Character param0, ItemLike param1) {
+      return this.define(param0, Ingredient.of(param1));
+   }
+
+   public ShapedRecipeBuilder define(Character param0, Ingredient param1) {
+      if (this.key.containsKey(param0)) {
+         throw new IllegalArgumentException("Symbol '" + param0 + "' is already defined!");
+      }
+
+      if (param0 == ' ') {
+         throw new IllegalArgumentException("Symbol ' ' (whitespace) is reserved and cannot be defined");
+      }
+
+      this.key.put(param0, param1);
+      return this;
+   }
+
+   public ShapedRecipeBuilder pattern(String param0) {
+      if (!this.rows.isEmpty() && param0.length() != this.rows.get(0).length()) {
+         throw new IllegalArgumentException("Pattern must be the same width on every line!");
+      }
+
+      this.rows.add(param0);
+      return this;
+   }
+
+   public ShapedRecipeBuilder unlockedBy(String param0, CriterionTriggerInstance param1) {
+      this.advancement.addCriterion(param0, param1);
+      return this;
+   }
+
+   public ShapedRecipeBuilder group(@Nullable String param0) {
+      this.group = param0;
+      return this;
+   }
+
+   public ShapedRecipeBuilder showNotification(boolean param0) {
+      this.showNotification = param0;
+      return this;
+   }
+
+   @Override
+   public Item getResult() {
+      return this.result;
+   }
+
+   @Override
+   public void save(Consumer<FinishedRecipe> param0, ResourceLocation param1) {
+      this.ensureValid(param1);
+      this.advancement
+         .parent(ROOT_RECIPE_ADVANCEMENT)
+         .addCriterion("has_the_recipe", RecipeUnlockedTrigger.unlocked(param1))
+         .rewards(AdvancementRewards.Builder.recipe(param1))
+         .requirements(RequirementsStrategy.OR);
+      param0.accept(
+         new ShapedRecipeBuilder.Result(
+            param1,
+            this.result,
+            this.count,
+            this.group == null ? "" : this.group,
+            determineBookCategory(this.category),
+            this.rows,
+            this.key,
+            this.advancement,
+            param1.withPrefix("recipes/" + this.category.getFolderName() + "/"),
+            this.showNotification
+         )
+      );
+   }
+
+   private void ensureValid(ResourceLocation param0) {
+      if (this.rows.isEmpty()) {
+         throw new IllegalStateException("No pattern is defined for shaped recipe " + param0 + "!");
+      }
+
+      Set<Character> var2 = Sets.newHashSet(this.key.keySet());
+      var2.remove(' ');
+
+      for (String var4 : this.rows) {
+         for (int var5 = 0; var5 < var4.length(); var5++) {
+            char var6 = var4.charAt(var5);
+            if (!this.key.containsKey(var6) && var6 != ' ') {
+               throw new IllegalStateException("Pattern in recipe " + param0 + " uses undefined symbol '" + var6 + "'");
+            }
+
+            var2.remove(var6);
+         }
+      }
+
+      if (!var2.isEmpty()) {
+         throw new IllegalStateException("Ingredients are defined but not used in pattern for recipe " + param0);
+      }
+
+      if (this.rows.size() == 1 && this.rows.get(0).length() == 1) {
+         throw new IllegalStateException("Shaped recipe " + param0 + " only takes in a single item - should it be a shapeless recipe instead?");
+      }
+
+      if (this.advancement.getCriteria().isEmpty()) {
+         throw new IllegalStateException("No way of obtaining recipe " + param0);
+      }
+   }
+
+   static class Result extends CraftingRecipeBuilder.CraftingResult {
+      private final ResourceLocation id;
+      private final Item result;
+      private final int count;
+      private final String group;
+      private final List<String> pattern;
+      private final Map<Character, Ingredient> key;
+      private final Advancement.Builder advancement;
+      private final ResourceLocation advancementId;
+      private final boolean showNotification;
+
+      public Result(
+         ResourceLocation param0,
+         Item param1,
+         int param2,
+         String param3,
+         CraftingBookCategory param4,
+         List<String> param5,
+         Map<Character, Ingredient> param6,
+         Advancement.Builder param7,
+         ResourceLocation param8,
+         boolean param9
+      ) {
+         super(param4);
+         this.id = param0;
+         this.result = param1;
+         this.count = param2;
+         this.group = param3;
+         this.pattern = param5;
+         this.key = param6;
+         this.advancement = param7;
+         this.advancementId = param8;
+         this.showNotification = param9;
+      }
+
+      @Override
+      public void serializeRecipeData(JsonObject param0) {
+         super.serializeRecipeData(param0);
+         if (!this.group.isEmpty()) {
+            param0.addProperty("group", this.group);
+         }
+
+         JsonArray var2 = new JsonArray();
+
+         for (String var4 : this.pattern) {
+            var2.add(var4);
+         }
+
+         param0.add("pattern", var2);
+         JsonObject var3 = new JsonObject();
+
+         for (Entry<Character, Ingredient> var5 : this.key.entrySet()) {
+            var3.add(String.valueOf(var5.getKey()), var5.getValue().toJson());
+         }
+
+         param0.add("key", var3);
+         JsonObject var4 = new JsonObject();
+         var4.addProperty("item", BuiltInRegistries.ITEM.getKey(this.result).toString());
+         if (this.count > 1) {
+            var4.addProperty("count", this.count);
+         }
+
+         param0.add("result", var4);
+         param0.addProperty("show_notification", this.showNotification);
+      }
+
+      @Override
+      public RecipeSerializer<?> getType() {
+         return RecipeSerializer.SHAPED_RECIPE;
+      }
+
+      @Override
+      public ResourceLocation getId() {
+         return this.id;
+      }
+
+      @Nullable
+      @Override
+      public JsonObject serializeAdvancement() {
+         return this.advancement.serializeToJson();
+      }
+
+      @Nullable
+      @Override
+      public ResourceLocation getAdvancementId() {
+         return this.advancementId;
+      }
+   }
+}

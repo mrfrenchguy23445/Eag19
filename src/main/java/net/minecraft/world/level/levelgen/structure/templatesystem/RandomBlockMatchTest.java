@@ -1,0 +1,35 @@
+package net.minecraft.world.level.levelgen.structure.templatesystem;
+
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+
+public class RandomBlockMatchTest extends RuleTest {
+   public static final Codec<RandomBlockMatchTest> CODEC = RecordCodecBuilder.create(
+      param0 -> param0.group(
+            BuiltInRegistries.BLOCK.byNameCodec().fieldOf("block").forGetter(l_param0 -> l_param0.block),
+            Codec.FLOAT.fieldOf("probability").forGetter(l_param0 -> l_param0.probability)
+         )
+         .apply(param0, RandomBlockMatchTest::new)
+   );
+   private final Block block;
+   private final float probability;
+
+   public RandomBlockMatchTest(Block param0, float param1) {
+      this.block = param0;
+      this.probability = param1;
+   }
+
+   @Override
+   public boolean test(BlockState param0, RandomSource param1) {
+      return param0.is(this.block) && param1.nextFloat() < this.probability;
+   }
+
+   @Override
+   protected RuleTestType<?> getType() {
+      return RuleTestType.RANDOM_BLOCK_TEST;
+   }
+}

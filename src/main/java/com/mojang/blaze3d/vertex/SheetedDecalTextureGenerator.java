@@ -1,0 +1,103 @@
+package com.mojang.blaze3d.vertex;
+
+import net.minecraft.core.Direction;
+import org.joml.Matrix3f;
+import org.joml.Matrix4f;
+import org.joml.Vector3f;
+import org.joml.Vector4f;
+
+public class SheetedDecalTextureGenerator extends DefaultedVertexConsumer {
+   private final VertexConsumer delegate;
+   private final Matrix4f cameraInversePose;
+   private final Matrix3f normalInversePose;
+   private final float textureScale;
+   private float x;
+   private float y;
+   private float z;
+   private int overlayU;
+   private int overlayV;
+   private int lightCoords;
+   private float nx;
+   private float ny;
+   private float nz;
+
+   public SheetedDecalTextureGenerator(VertexConsumer param0, Matrix4f param1, Matrix3f param2, float param3) {
+      this.delegate = param0;
+      this.cameraInversePose = new Matrix4f(param1).invert();
+      this.normalInversePose = new Matrix3f(param2).invert();
+      this.textureScale = param3;
+      this.resetState();
+   }
+
+   private void resetState() {
+      this.x = 0.0F;
+      this.y = 0.0F;
+      this.z = 0.0F;
+      this.overlayU = 0;
+      this.overlayV = 10;
+      this.lightCoords = 15728880;
+      this.nx = 0.0F;
+      this.ny = 1.0F;
+      this.nz = 0.0F;
+   }
+
+   @Override
+   public void endVertex() {
+      Vector3f var1 = this.normalInversePose.transform(new Vector3f(this.nx, this.ny, this.nz));
+      Direction var2 = Direction.getNearest(var1.x(), var1.y(), var1.z());
+      Vector4f var3 = this.cameraInversePose.transform(new Vector4f(this.x, this.y, this.z, 1.0F));
+      var3.rotateY((float) Math.PI);
+      var3.rotateX((float) (-Math.PI / 2));
+      var3.rotate(var2.getRotation());
+      float var4 = -var3.x() * this.textureScale;
+      float var5 = -var3.y() * this.textureScale;
+      this.delegate
+         .vertex(this.x, this.y, this.z)
+         .color(1.0F, 1.0F, 1.0F, 1.0F)
+         .uv(var4, var5)
+         .overlayCoords(this.overlayU, this.overlayV)
+         .uv2(this.lightCoords)
+         .normal(this.nx, this.ny, this.nz)
+         .endVertex();
+      this.resetState();
+   }
+
+   @Override
+   public VertexConsumer vertex(double param0, double param2, double param4) {
+      this.x = (float)param0;
+      this.y = (float)param2;
+      this.z = (float)param4;
+      return this;
+   }
+
+   @Override
+   public VertexConsumer color(int param0, int param1, int param2, int param3) {
+      return this;
+   }
+
+   @Override
+   public VertexConsumer uv(float param0, float param1) {
+      return this;
+   }
+
+   @Override
+   public VertexConsumer overlayCoords(int param0, int param1) {
+      this.overlayU = param0;
+      this.overlayV = param1;
+      return this;
+   }
+
+   @Override
+   public VertexConsumer uv2(int param0, int param1) {
+      this.lightCoords = param0 | param1 << 16;
+      return this;
+   }
+
+   @Override
+   public VertexConsumer normal(float param0, float param1, float param2) {
+      this.nx = param0;
+      this.ny = param1;
+      this.nz = param2;
+      return this;
+   }
+}

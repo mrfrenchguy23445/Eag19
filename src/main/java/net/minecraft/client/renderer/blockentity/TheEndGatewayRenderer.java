@@ -1,0 +1,51 @@
+package net.minecraft.client.renderer.blockentity;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.level.block.entity.TheEndGatewayBlockEntity;
+
+public class TheEndGatewayRenderer extends TheEndPortalRenderer<TheEndGatewayBlockEntity> {
+   private static final ResourceLocation BEAM_LOCATION = new ResourceLocation("textures/entity/end_gateway_beam.png");
+
+   public TheEndGatewayRenderer(BlockEntityRendererProvider.Context param0) {
+      super(param0);
+   }
+
+   public void render(TheEndGatewayBlockEntity param0, float param1, PoseStack param2, MultiBufferSource param3, int param4, int param5) {
+      if (param0.isSpawning() || param0.isCoolingDown()) {
+         float var7 = param0.isSpawning() ? param0.getSpawnPercent(param1) : param0.getCooldownPercent(param1);
+         double var8 = param0.isSpawning() ? param0.getLevel().getMaxBuildHeight() : 50.0;
+         var7 = Mth.sin(var7 * (float) Math.PI);
+         int var10 = Mth.floor(var7 * var8);
+         float[] var11 = param0.isSpawning() ? DyeColor.MAGENTA.getTextureDiffuseColors() : DyeColor.PURPLE.getTextureDiffuseColors();
+         long var12 = param0.getLevel().getGameTime();
+         BeaconRenderer.renderBeaconBeam(param2, param3, BEAM_LOCATION, param1, var7, var12, -var10, var10 * 2, var11, 0.15F, 0.175F);
+      }
+
+      super.render(param0, param1, param2, param3, param4, param5);
+   }
+
+   @Override
+   protected float getOffsetUp() {
+      return 1.0F;
+   }
+
+   @Override
+   protected float getOffsetDown() {
+      return 0.0F;
+   }
+
+   @Override
+   protected RenderType renderType() {
+      return RenderType.endGateway();
+   }
+
+   @Override
+   public int getViewDistance() {
+      return 256;
+   }
+}

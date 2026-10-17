@@ -1,0 +1,113 @@
+package net.minecraft.client.renderer.blockentity;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.math.Axis;
+import net.minecraft.client.model.geom.ModelLayers;
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.model.geom.PartPose;
+import net.minecraft.client.model.geom.builders.CubeListBuilder;
+import net.minecraft.client.model.geom.builders.LayerDefinition;
+import net.minecraft.client.model.geom.builders.MeshDefinition;
+import net.minecraft.client.model.geom.builders.PartDefinition;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.Sheets;
+import net.minecraft.client.resources.model.Material;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.BedBlock;
+import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.DoubleBlockCombiner;
+import net.minecraft.world.level.block.entity.BedBlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BedPart;
+
+public class BedRenderer implements BlockEntityRenderer<BedBlockEntity> {
+   private final ModelPart headRoot;
+   private final ModelPart footRoot;
+
+   public BedRenderer(BlockEntityRendererProvider.Context param0) {
+      this.headRoot = param0.bakeLayer(ModelLayers.BED_HEAD);
+      this.footRoot = param0.bakeLayer(ModelLayers.BED_FOOT);
+   }
+
+   public static LayerDefinition createHeadLayer() {
+      MeshDefinition var0 = new MeshDefinition();
+      PartDefinition var1 = var0.getRoot();
+      var1.addOrReplaceChild("main", CubeListBuilder.create().texOffs(0, 0).addBox(0.0F, 0.0F, 0.0F, 16.0F, 16.0F, 6.0F), PartPose.ZERO);
+      var1.addOrReplaceChild(
+         "left_leg",
+         CubeListBuilder.create().texOffs(50, 6).addBox(0.0F, 6.0F, 0.0F, 3.0F, 3.0F, 3.0F),
+         PartPose.rotation((float) (Math.PI / 2), 0.0F, (float) (Math.PI / 2))
+      );
+      var1.addOrReplaceChild(
+         "right_leg",
+         CubeListBuilder.create().texOffs(50, 18).addBox(-16.0F, 6.0F, 0.0F, 3.0F, 3.0F, 3.0F),
+         PartPose.rotation((float) (Math.PI / 2), 0.0F, (float) Math.PI)
+      );
+      return LayerDefinition.create(var0, 64, 64);
+   }
+
+   public static LayerDefinition createFootLayer() {
+      MeshDefinition var0 = new MeshDefinition();
+      PartDefinition var1 = var0.getRoot();
+      var1.addOrReplaceChild("main", CubeListBuilder.create().texOffs(0, 22).addBox(0.0F, 0.0F, 0.0F, 16.0F, 16.0F, 6.0F), PartPose.ZERO);
+      var1.addOrReplaceChild(
+         "left_leg", CubeListBuilder.create().texOffs(50, 0).addBox(0.0F, 6.0F, -16.0F, 3.0F, 3.0F, 3.0F), PartPose.rotation((float) (Math.PI / 2), 0.0F, 0.0F)
+      );
+      var1.addOrReplaceChild(
+         "right_leg",
+         CubeListBuilder.create().texOffs(50, 12).addBox(-16.0F, 6.0F, -16.0F, 3.0F, 3.0F, 3.0F),
+         PartPose.rotation((float) (Math.PI / 2), 0.0F, (float) (Math.PI * 3.0 / 2.0))
+      );
+      return LayerDefinition.create(var0, 64, 64);
+   }
+
+   public void render(BedBlockEntity param0, float param1, PoseStack param2, MultiBufferSource param3, int param4, int param5) {
+      Material var7 = Sheets.BED_TEXTURES[param0.getColor().getId()];
+      Level var8 = param0.getLevel();
+      if (var8 != null) {
+         BlockState var9 = param0.getBlockState();
+         DoubleBlockCombiner.NeighborCombineResult<? extends BedBlockEntity> var10 = DoubleBlockCombiner.combineWithNeigbour(
+            BlockEntityType.BED,
+            BedBlock::getBlockType,
+            BedBlock::getConnectedDirection,
+            ChestBlock.FACING,
+            var9,
+            var8,
+            param0.getBlockPos(),
+            (l_param0, l_param1) -> false
+         );
+         int var11 = var10.apply(new BrightnessCombiner<>()).get(param4);
+         this.renderPiece(
+            param2,
+            param3,
+            var9.getValue(BedBlock.PART) == BedPart.HEAD ? this.headRoot : this.footRoot,
+            var9.getValue(BedBlock.FACING),
+            var7,
+            var11,
+            param5,
+            false
+         );
+      } else {
+         this.renderPiece(param2, param3, this.headRoot, Direction.SOUTH, var7, param4, param5, false);
+         this.renderPiece(param2, param3, this.footRoot, Direction.SOUTH, var7, param4, param5, true);
+      }
+   }
+
+   private void renderPiece(
+      PoseStack param0, MultiBufferSource param1, ModelPart param2, Direction param3, Material param4, int param5, int param6, boolean param7
+   ) {
+      param0.pushPose();
+      param0.translate(0.0F, 0.5625F, param7 ? -1.0F : 0.0F);
+      param0.mulPose(Axis.XP.rotationDegrees(90.0F));
+      param0.translate(0.5F, 0.5F, 0.5F);
+      param0.mulPose(Axis.ZP.rotationDegrees(180.0F + param3.toYRot()));
+      param0.translate(-0.5F, -0.5F, -0.5F);
+      VertexConsumer var9 = param4.buffer(param1, RenderType::entitySolid);
+      param2.render(param0, var9, param5, param6);
+      param0.popPose();
+   }
+}

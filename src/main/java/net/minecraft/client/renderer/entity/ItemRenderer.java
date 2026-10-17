@@ -1,0 +1,382 @@
+package net.minecraft.client.renderer.entity;
+
+import com.google.common.collect.Sets;
+import com.mojang.blaze3d.platform.Lighting;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.SheetedDecalTextureGenerator;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexMultiConsumer;
+import com.mojang.math.MatrixUtil;
+import java.util.List;
+import java.util.Set;
+import javax.annotation.Nullable;
+import net.minecraft.CrashReport;
+import net.minecraft.CrashReportCategory;
+import net.minecraft.ReportedException;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.color.item.ItemColors;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiComponent;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer;
+import net.minecraft.client.renderer.ItemBlockRenderTypes;
+import net.minecraft.client.renderer.ItemModelShaper;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.Sheets;
+import net.minecraft.client.renderer.block.model.BakedQuad;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.texture.TextureManager;
+import net.minecraft.client.resources.model.BakedModel;
+import net.minecraft.client.resources.model.ModelManager;
+import net.minecraft.client.resources.model.ModelResourceLocation;
+import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
+import net.minecraft.tags.ItemTags;
+import net.minecraft.util.Mth;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.HalfTransparentBlock;
+import net.minecraft.world.level.block.StainedGlassPaneBlock;
+import org.joml.Matrix4f;
+
+public class ItemRenderer implements ResourceManagerReloadListener {
+   public static final ResourceLocation ENCHANTED_GLINT_ENTITY = new ResourceLocation("textures/misc/enchanted_glint_entity.png");
+   public static final ResourceLocation ENCHANTED_GLINT_ITEM = new ResourceLocation("textures/misc/enchanted_glint_item.png");
+   private static final Set<Item> IGNORED = Sets.newHashSet(Items.AIR);
+   private static final int GUI_SLOT_CENTER_X = 8;
+   private static final int GUI_SLOT_CENTER_Y = 8;
+   public static final int ITEM_COUNT_BLIT_OFFSET = 200;
+   public static final float COMPASS_FOIL_UI_SCALE = 0.5F;
+   public static final float COMPASS_FOIL_FIRST_PERSON_SCALE = 0.75F;
+   public static final float COMPASS_FOIL_TEXTURE_SCALE = 0.0078125F;
+   private static final ModelResourceLocation TRIDENT_MODEL = ModelResourceLocation.vanilla("trident", "inventory");
+   public static final ModelResourceLocation TRIDENT_IN_HAND_MODEL = ModelResourceLocation.vanilla("trident_in_hand", "inventory");
+   private static final ModelResourceLocation SPYGLASS_MODEL = ModelResourceLocation.vanilla("spyglass", "inventory");
+   public static final ModelResourceLocation SPYGLASS_IN_HAND_MODEL = ModelResourceLocation.vanilla("spyglass_in_hand", "inventory");
+   private final Minecraft minecraft;
+   private final ItemModelShaper itemModelShaper;
+   private final TextureManager textureManager;
+   private final ItemColors itemColors;
+   private final BlockEntityWithoutLevelRenderer blockEntityRenderer;
+
+   public ItemRenderer(Minecraft param0, TextureManager param1, ModelManager param2, ItemColors param3, BlockEntityWithoutLevelRenderer param4) {
+      this.minecraft = param0;
+      this.textureManager = param1;
+      this.itemModelShaper = new ItemModelShaper(param2);
+      this.blockEntityRenderer = param4;
+
+      for (Item var7 : BuiltInRegistries.ITEM) {
+         if (!IGNORED.contains(var7)) {
+            this.itemModelShaper.register(var7, new ModelResourceLocation(BuiltInRegistries.ITEM.getKey(var7), "inventory"));
+         }
+      }
+
+      this.itemColors = param3;
+   }
+
+   public ItemModelShaper getItemModelShaper() {
+      return this.itemModelShaper;
+   }
+
+   private void renderModelLists(BakedModel param0, ItemStack param1, int param2, int param3, PoseStack param4, VertexConsumer param5) {
+      RandomSource var7 = RandomSource.create();
+      long var8 = 42L;
+
+      for (Direction var13 : Direction.values()) {
+         var7.setSeed(42L);
+         this.renderQuadList(param4, param5, param0.getQuads(null, var13, var7), param1, param2, param3);
+      }
+
+      var7.setSeed(42L);
+      this.renderQuadList(param4, param5, param0.getQuads(null, null, var7), param1, param2, param3);
+   }
+
+   public void render(
+      ItemStack param0, ItemDisplayContext param1, boolean param2, PoseStack param3, MultiBufferSource param4, int param5, int param6, BakedModel param7
+   ) {
+      if (!param0.isEmpty()) {
+         param3.pushPose();
+         boolean var9 = param1 == ItemDisplayContext.GUI || param1 == ItemDisplayContext.GROUND || param1 == ItemDisplayContext.FIXED;
+         if (var9) {
+            if (param0.is(Items.TRIDENT)) {
+               param7 = this.itemModelShaper.getModelManager().getModel(TRIDENT_MODEL);
+            } else if (param0.is(Items.SPYGLASS)) {
+               param7 = this.itemModelShaper.getModelManager().getModel(SPYGLASS_MODEL);
+            }
+         }
+
+         param7.getTransforms().getTransform(param1).apply(param2, param3);
+         param3.translate(-0.5F, -0.5F, -0.5F);
+         if (!param7.isCustomRenderer() && (!param0.is(Items.TRIDENT) || var9)) {
+            boolean var10;
+            if (param1 != ItemDisplayContext.GUI && !param1.firstPerson() && param0.getItem() instanceof BlockItem) {
+               Block var11 = ((BlockItem)param0.getItem()).getBlock();
+               var10 = !(var11 instanceof HalfTransparentBlock) && !(var11 instanceof StainedGlassPaneBlock);
+            } else {
+               var10 = true;
+            }
+
+            RenderType var11 = ItemBlockRenderTypes.getRenderType(param0, var10);
+            VertexConsumer var12;
+            if (param0.is(ItemTags.COMPASSES) && param0.hasFoil()) {
+               param3.pushPose();
+               PoseStack.Pose var13 = param3.last();
+               if (param1 == ItemDisplayContext.GUI) {
+                  MatrixUtil.mulComponentWise(var13.pose(), 0.5F);
+               } else if (param1.firstPerson()) {
+                  MatrixUtil.mulComponentWise(var13.pose(), 0.75F);
+               }
+
+               if (var10) {
+                  var12 = getCompassFoilBufferDirect(param4, var11, var13);
+               } else {
+                  var12 = getCompassFoilBuffer(param4, var11, var13);
+               }
+
+               param3.popPose();
+            } else if (var10) {
+               var12 = getFoilBufferDirect(param4, var11, true, param0.hasFoil());
+            } else {
+               var12 = getFoilBuffer(param4, var11, true, param0.hasFoil());
+            }
+
+            this.renderModelLists(param7, param0, param5, param6, param3, var12);
+         } else {
+            this.blockEntityRenderer.renderByItem(param0, param1, param3, param4, param5, param6);
+         }
+
+         param3.popPose();
+      }
+   }
+
+   public static VertexConsumer getArmorFoilBuffer(MultiBufferSource param0, RenderType param1, boolean param2, boolean param3) {
+      return param3
+         ? VertexMultiConsumer.create(param0.getBuffer(param2 ? RenderType.armorGlint() : RenderType.armorEntityGlint()), param0.getBuffer(param1))
+         : param0.getBuffer(param1);
+   }
+
+   public static VertexConsumer getCompassFoilBuffer(MultiBufferSource param0, RenderType param1, PoseStack.Pose param2) {
+      return VertexMultiConsumer.create(
+         new SheetedDecalTextureGenerator(param0.getBuffer(RenderType.glint()), param2.pose(), param2.normal(), 0.0078125F), param0.getBuffer(param1)
+      );
+   }
+
+   public static VertexConsumer getCompassFoilBufferDirect(MultiBufferSource param0, RenderType param1, PoseStack.Pose param2) {
+      return VertexMultiConsumer.create(
+         new SheetedDecalTextureGenerator(param0.getBuffer(RenderType.glintDirect()), param2.pose(), param2.normal(), 0.0078125F), param0.getBuffer(param1)
+      );
+   }
+
+   public static VertexConsumer getFoilBuffer(MultiBufferSource param0, RenderType param1, boolean param2, boolean param3) {
+      if (param3) {
+         return Minecraft.useShaderTransparency() && param1 == Sheets.translucentItemSheet()
+            ? VertexMultiConsumer.create(param0.getBuffer(RenderType.glintTranslucent()), param0.getBuffer(param1))
+            : VertexMultiConsumer.create(param0.getBuffer(param2 ? RenderType.glint() : RenderType.entityGlint()), param0.getBuffer(param1));
+      } else {
+         return param0.getBuffer(param1);
+      }
+   }
+
+   public static VertexConsumer getFoilBufferDirect(MultiBufferSource param0, RenderType param1, boolean param2, boolean param3) {
+      return param3
+         ? VertexMultiConsumer.create(param0.getBuffer(param2 ? RenderType.glintDirect() : RenderType.entityGlintDirect()), param0.getBuffer(param1))
+         : param0.getBuffer(param1);
+   }
+
+   private void renderQuadList(PoseStack param0, VertexConsumer param1, List<BakedQuad> param2, ItemStack param3, int param4, int param5) {
+      boolean var7 = !param3.isEmpty();
+      PoseStack.Pose var8 = param0.last();
+
+      for (BakedQuad var10 : param2) {
+         int var11 = -1;
+         if (var7 && var10.isTinted()) {
+            var11 = this.itemColors.getColor(param3, var10.getTintIndex());
+         }
+
+         float var12 = (var11 >> 16 & 0xFF) / 255.0F;
+         float var13 = (var11 >> 8 & 0xFF) / 255.0F;
+         float var14 = (var11 & 0xFF) / 255.0F;
+         param1.putBulkData(var8, var10, var12, var13, var14, param4, param5);
+      }
+   }
+
+   public BakedModel getModel(ItemStack param0, @Nullable Level param1, @Nullable LivingEntity param2, int param3) {
+      BakedModel var5;
+      if (param0.is(Items.TRIDENT)) {
+         var5 = this.itemModelShaper.getModelManager().getModel(TRIDENT_IN_HAND_MODEL);
+      } else if (param0.is(Items.SPYGLASS)) {
+         var5 = this.itemModelShaper.getModelManager().getModel(SPYGLASS_IN_HAND_MODEL);
+      } else {
+         var5 = this.itemModelShaper.getItemModel(param0);
+      }
+
+      ClientLevel var6 = param1 instanceof ClientLevel ? (ClientLevel)param1 : null;
+      BakedModel var7 = var5.getOverrides().resolve(var5, param0, var6, param2, param3);
+      return var7 == null ? this.itemModelShaper.getModelManager().getMissingModel() : var7;
+   }
+
+   public void renderStatic(
+      ItemStack param0, ItemDisplayContext param1, int param2, int param3, PoseStack param4, MultiBufferSource param5, @Nullable Level param6, int param7
+   ) {
+      this.renderStatic(null, param0, param1, false, param4, param5, param6, param2, param3, param7);
+   }
+
+   public void renderStatic(
+      @Nullable LivingEntity param0,
+      ItemStack param1,
+      ItemDisplayContext param2,
+      boolean param3,
+      PoseStack param4,
+      MultiBufferSource param5,
+      @Nullable Level param6,
+      int param7,
+      int param8,
+      int param9
+   ) {
+      if (!param1.isEmpty()) {
+         BakedModel var11 = this.getModel(param1, param6, param0, param9);
+         this.render(param1, param2, param3, param4, param5, param7, param8, var11);
+      }
+   }
+
+   public void renderGuiItem(PoseStack param0, ItemStack param1, int param2, int param3) {
+      this.renderGuiItem(param0, param1, param2, param3, this.getModel(param1, null, null, 0));
+   }
+
+   protected void renderGuiItem(PoseStack param0, ItemStack param1, int param2, int param3, BakedModel param4) {
+      param0.pushPose();
+      param0.translate(param2, param3, 100.0F);
+      param0.translate(8.0F, 8.0F, 0.0F);
+      param0.mulPoseMatrix(new Matrix4f().scaling(1.0F, -1.0F, 1.0F));
+      param0.scale(16.0F, 16.0F, 16.0F);
+      MultiBufferSource.BufferSource var6 = this.minecraft.renderBuffers().bufferSource();
+      boolean var7 = !param4.usesBlockLight();
+      if (var7) {
+         Lighting.setupForFlatItems();
+      }
+
+      PoseStack var8 = RenderSystem.getModelViewStack();
+      var8.pushPose();
+      var8.mulPoseMatrix(param0.last().pose());
+      RenderSystem.applyModelViewMatrix();
+      this.render(param1, ItemDisplayContext.GUI, false, new PoseStack(), var6, 15728880, OverlayTexture.NO_OVERLAY, param4);
+      var6.endBatch();
+      RenderSystem.enableDepthTest();
+      if (var7) {
+         Lighting.setupFor3DItems();
+      }
+
+      param0.popPose();
+      var8.popPose();
+      RenderSystem.applyModelViewMatrix();
+   }
+
+   public void renderAndDecorateItem(PoseStack param0, ItemStack param1, int param2, int param3) {
+      this.tryRenderGuiItem(param0, this.minecraft.player, this.minecraft.level, param1, param2, param3, 0);
+   }
+
+   public void renderAndDecorateItem(PoseStack param0, ItemStack param1, int param2, int param3, int param4) {
+      this.tryRenderGuiItem(param0, this.minecraft.player, this.minecraft.level, param1, param2, param3, param4);
+   }
+
+   public void renderAndDecorateItem(PoseStack param0, ItemStack param1, int param2, int param3, int param4, int param5) {
+      this.tryRenderGuiItem(param0, this.minecraft.player, this.minecraft.level, param1, param2, param3, param4, param5);
+   }
+
+   public void renderAndDecorateFakeItem(PoseStack param0, ItemStack param1, int param2, int param3) {
+      this.tryRenderGuiItem(param0, null, this.minecraft.level, param1, param2, param3, 0);
+   }
+
+   public void renderAndDecorateItem(PoseStack param0, LivingEntity param1, ItemStack param2, int param3, int param4, int param5) {
+      this.tryRenderGuiItem(param0, param1, param1.level, param2, param3, param4, param5);
+   }
+
+   private void tryRenderGuiItem(PoseStack param0, @Nullable LivingEntity param1, @Nullable Level param2, ItemStack param3, int param4, int param5, int param6) {
+      this.tryRenderGuiItem(param0, param1, param2, param3, param4, param5, param6, 0);
+   }
+
+   private void tryRenderGuiItem(
+      PoseStack param0, @Nullable LivingEntity param1, @Nullable Level param2, ItemStack param3, int param4, int param5, int param6, int param7
+   ) {
+      if (!param3.isEmpty()) {
+         BakedModel var9 = this.getModel(param3, param2, param1, param6);
+         param0.pushPose();
+         param0.translate(0.0F, 0.0F, 50 + (var9.isGui3d() ? param7 : 0));
+
+         try {
+            this.renderGuiItem(param0, param3, param4, param5, var9);
+         } catch (Throwable var10) {
+            CrashReport var11 = CrashReport.forThrowable(var10, "Rendering item");
+            CrashReportCategory var12 = var11.addCategory("Item being rendered");
+            var12.setDetail("Item Type", () -> String.valueOf(param3.getItem()));
+            var12.setDetail("Item Damage", () -> String.valueOf(param3.getDamageValue()));
+            var12.setDetail("Item NBT", () -> String.valueOf(param3.getTag()));
+            var12.setDetail("Item Foil", () -> String.valueOf(param3.hasFoil()));
+            throw new ReportedException(var11);
+         }
+
+         param0.popPose();
+      }
+   }
+
+   public void renderGuiItemDecorations(PoseStack param0, Font param1, ItemStack param2, int param3, int param4) {
+      this.renderGuiItemDecorations(param0, param1, param2, param3, param4, null);
+   }
+
+   public void renderGuiItemDecorations(PoseStack param0, Font param1, ItemStack param2, int param3, int param4, @Nullable String param5) {
+      if (!param2.isEmpty()) {
+         param0.pushPose();
+         if (param2.getCount() != 1 || param5 != null) {
+            String var7 = param5 == null ? String.valueOf(param2.getCount()) : param5;
+            param0.translate(0.0F, 0.0F, 200.0F);
+            MultiBufferSource.BufferSource var8 = MultiBufferSource.immediate(Tesselator.getInstance().getBuilder());
+            param1.drawInBatch(
+               var7, param3 + 19 - 2 - param1.width(var7), param4 + 6 + 3, 16777215, true, param0.last().pose(), var8, Font.DisplayMode.NORMAL, 0, 15728880
+            );
+            var8.endBatch();
+         }
+
+         if (param2.isBarVisible()) {
+            RenderSystem.disableDepthTest();
+            int var7 = param2.getBarWidth();
+            int var8 = param2.getBarColor();
+            int var9 = param3 + 2;
+            int var10 = param4 + 13;
+            GuiComponent.fill(param0, var9, var10, var9 + 13, var10 + 2, -16777216);
+            GuiComponent.fill(param0, var9, var10, var9 + var7, var10 + 1, var8 | 0xFF000000);
+            RenderSystem.enableDepthTest();
+         }
+
+         LocalPlayer var7 = this.minecraft.player;
+         float var8 = var7 == null ? 0.0F : var7.getCooldowns().getCooldownPercent(param2.getItem(), this.minecraft.getFrameTime());
+         if (var8 > 0.0F) {
+            RenderSystem.disableDepthTest();
+            int var9 = param4 + Mth.floor(16.0F * (1.0F - var8));
+            int var10 = var9 + Mth.ceil(16.0F * var8);
+            GuiComponent.fill(param0, param3, var9, param3 + 16, var10, Integer.MAX_VALUE);
+            RenderSystem.enableDepthTest();
+         }
+
+         param0.popPose();
+      }
+   }
+
+   @Override
+   public void onResourceManagerReload(ResourceManager param0) {
+      this.itemModelShaper.rebuildCache();
+   }
+}

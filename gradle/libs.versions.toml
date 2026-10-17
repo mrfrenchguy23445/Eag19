@@ -1,0 +1,92 @@
+[libraries]
+hppc = "com.carrotsearch:hppc:0.10.0"
+jsr305 = "com.google.code.findbugs:jsr305:3.0.2"
+lang3 = "org.apache.commons:commons-lang3:3.12.0"
+jorbis = "org.jcraft:jorbis:0.0.17"
+mc-gson = "com.google.code.gson:gson:2.10"
+mc-icu4j = "com.ibm.icu:icu4j:71.1"
+mc-authlib = "com.mojang:authlib:3.18.38"
+mc-brigadier = "com.mojang:brigadier:1.0.18"
+mc-datafixerupper = "com.mojang:datafixerupper:6.0.6"
+mc-logging = "com.mojang:logging:1.1.1"
+mc-blocklist = "com.mojang:blocklist:1.0.10"
+mc-patchy = "com.mojang:patchy:2.2.10"
+mc-fastutil = "it.unimi.dsi:fastutil:8.5.9"
+mc-commons-codec = "commons-codec:commons-codec:1.15"
+mc-commons-io = "commons-io:commons-io:2.11.0"
+mc-commons-compress = "org.apache.commons:commons-compress:1.21"
+mc-jopt-simple = "net.sf.jopt-simple:jopt-simple:5.0.4"
+mc-httpclient = "org.apache.httpcomponents:httpclient:4.5.13"
+mc-httpcore = "org.apache.httpcomponents:httpcore:4.4.15"
+mc-joml = "org.joml:joml:1.10.5"
+mc-slf4j-api = "org.slf4j:slf4j-api:2.0.1"
+mc-log4j-api = "org.apache.logging.log4j:log4j-api:2.19.0"
+mc-log4j-core = "org.apache.logging.log4j:log4j-core:2.19.0"
+mc-log4j-slf4j2-impl = "org.apache.logging.log4j:log4j-slf4j2-impl:2.19.0"
+mc-oshi-core = "com.github.oshi:oshi-core:6.2.2"
+mc-text2speech = "com.mojang:text2speech:1.16.7"
+mc-jna = "net.java.dev.jna:jna:5.12.1"
+mc-jna-platform = "net.java.dev.jna:jna-platform:5.12.1"
+
+mc-netty-common = "io.netty:netty-common:4.1.82.Final"
+mc-netty-buffer = "io.netty:netty-buffer:4.1.82.Final"
+mc-netty-transport = "io.netty:netty-transport:4.1.82.Final"
+mc-netty-resolver = "io.netty:netty-resolver:4.1.82.Final"
+mc-netty-codec = "io.netty:netty-codec:4.1.82.Final"
+mc-netty-handler = "io.netty:netty-handler:4.1.82.Final"
+mc-netty-transport-native-unix-common = "io.netty:netty-transport-native-unix-common:4.1.82.Final"
+mc-netty-transport-classes-epoll = "io.netty:netty-transport-classes-epoll:4.1.82.Final"
+mc-lwjgl = "org.lwjgl:lwjgl:3.3.1"
+mc-lwjgl-glfw = "org.lwjgl:lwjgl-glfw:3.3.1"
+mc-lwjgl-opengl = "org.lwjgl:lwjgl-opengl:3.3.1"
+mc-lwjgl-opengles = "org.lwjgl:lwjgl-opengles:3.3.1"
+mc-lwjgl-stb = "org.lwjgl:lwjgl-stb:3.3.1"
+mc-lwjgl-tinyfd = "org.lwjgl:lwjgl-tinyfd:3.3.1"
+mc-lwjgl-openal = "org.lwjgl:lwjgl-openal:3.3.1"
+mc-jetbrains-annotations = "org.jetbrains:annotations:24.0.1"
+
+[bundles]
+common = [
+	"hppc",
+	"jsr305",
+	"lang3"
+]
+
+mc1194 = [
+	"mc-authlib",
+	"mc-brigadier",
+	"mc-datafixerupper",
+	"mc-logging",
+	"mc-blocklist",
+	"mc-patchy",
+	"mc-fastutil",
+	"mc-commons-codec",
+	"mc-commons-io",
+	"mc-commons-compress",
+	"mc-jopt-simple",
+	"mc-httpclient",
+	"mc-httpcore",
+	"mc-log4j-api",
+	"mc-log4j-core",
+	"mc-log4j-slf4j2-impl",
+	"mc-oshi-core",
+	"mc-text2speech",
+	"mc-jna",
+	"mc-jna-platform",
+	"mc-netty-common",
+	"mc-netty-buffer",
+	"mc-netty-transport",
+	"mc-netty-resolver",
+	"mc-netty-codec",
+	"mc-netty-handler",
+	"mc-netty-transport-native-unix-common",
+	"mc-netty-transport-classes-epoll",
+	"mc-lwjgl",
+	"mc-lwjgl-glfw",
+	"mc-lwjgl-opengl",
+	"mc-lwjgl-opengles",
+	"mc-lwjgl-stb",
+	"mc-lwjgl-tinyfd",
+	"mc-lwjgl-openal",
+	"mc-jetbrains-annotations"
+]

@@ -1,0 +1,3 @@
+# Eaglercraft 1.19.4 
+
+JAVA 17 OR GREAT IS REQUIRED!

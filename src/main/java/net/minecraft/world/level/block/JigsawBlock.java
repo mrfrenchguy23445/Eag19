@@ -1,0 +1,91 @@
+package net.minecraft.world.level.block;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.FrontAndTop;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.JigsawBlockEntity;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
+import net.minecraft.world.phys.BlockHitResult;
+
+public class JigsawBlock extends Block implements EntityBlock, GameMasterBlock {
+   public static final EnumProperty<FrontAndTop> ORIENTATION = BlockStateProperties.ORIENTATION;
+
+   protected JigsawBlock(BlockBehaviour.Properties param0) {
+      super(param0);
+      this.registerDefaultState(this.stateDefinition.any().setValue(ORIENTATION, FrontAndTop.NORTH_UP));
+   }
+
+   @Override
+   protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> param0) {
+      param0.add(ORIENTATION);
+   }
+
+   @Override
+   public BlockState rotate(BlockState param0, Rotation param1) {
+      return param0.setValue(ORIENTATION, param1.rotation().rotate(param0.getValue(ORIENTATION)));
+   }
+
+   @Override
+   public BlockState mirror(BlockState param0, Mirror param1) {
+      return param0.setValue(ORIENTATION, param1.rotation().rotate(param0.getValue(ORIENTATION)));
+   }
+
+   @Override
+   public BlockState getStateForPlacement(BlockPlaceContext param0) {
+      Direction var2 = param0.getClickedFace();
+      Direction var3;
+      if (var2.getAxis() == Direction.Axis.Y) {
+         var3 = param0.getHorizontalDirection().getOpposite();
+      } else {
+         var3 = Direction.UP;
+      }
+
+      return this.defaultBlockState().setValue(ORIENTATION, FrontAndTop.fromFrontAndTop(var2, var3));
+   }
+
+   @Override
+   public BlockEntity newBlockEntity(BlockPos param0, BlockState param1) {
+      return new JigsawBlockEntity(param0, param1);
+   }
+
+   @Override
+   public InteractionResult use(BlockState param0, Level param1, BlockPos param2, Player param3, InteractionHand param4, BlockHitResult param5) {
+      BlockEntity var7 = param1.getBlockEntity(param2);
+      if (var7 instanceof JigsawBlockEntity && param3.canUseGameMasterBlocks()) {
+         param3.openJigsawBlock((JigsawBlockEntity)var7);
+         return InteractionResult.sidedSuccess(param1.isClientSide);
+      } else {
+         return InteractionResult.PASS;
+      }
+   }
+
+   public static boolean canAttach(StructureTemplate.StructureBlockInfo param0, StructureTemplate.StructureBlockInfo param1) {
+      Direction var2 = getFrontFacing(param0.state);
+      Direction var3 = getFrontFacing(param1.state);
+      Direction var4 = getTopFacing(param0.state);
+      Direction var5 = getTopFacing(param1.state);
+      JigsawBlockEntity.JointType var6 = JigsawBlockEntity.JointType.byName(param0.nbt.getString("joint"))
+         .orElseGet(() -> var2.getAxis().isHorizontal() ? JigsawBlockEntity.JointType.ALIGNED : JigsawBlockEntity.JointType.ROLLABLE);
+      boolean var7 = var6 == JigsawBlockEntity.JointType.ROLLABLE;
+      return var2 == var3.getOpposite() && (var7 || var4 == var5) && param0.nbt.getString("target").equals(param1.nbt.getString("name"));
+   }
+
+   public static Direction getFrontFacing(BlockState param0) {
+      return param0.getValue(ORIENTATION).front();
+   }
+
+   public static Direction getTopFacing(BlockState param0) {
+      return param0.getValue(ORIENTATION).top();
+   }
+}

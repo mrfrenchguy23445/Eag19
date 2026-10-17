@@ -1,0 +1,71 @@
+package net.minecraft.world.level.levelgen.carver;
+
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.core.HolderSet;
+import net.minecraft.util.ExtraCodecs;
+import net.minecraft.util.valueproviders.FloatProvider;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.levelgen.VerticalAnchor;
+import net.minecraft.world.level.levelgen.heightproviders.HeightProvider;
+
+public class CanyonCarverConfiguration extends CarverConfiguration {
+   public static final Codec<CanyonCarverConfiguration> CODEC = RecordCodecBuilder.create(
+      param0 -> param0.group(
+            CarverConfiguration.CODEC.forGetter(l_param0 -> l_param0),
+            FloatProvider.CODEC.fieldOf("vertical_rotation").forGetter(l_param0 -> l_param0.verticalRotation),
+            CanyonCarverConfiguration.CanyonShapeConfiguration.CODEC.fieldOf("shape").forGetter(l_param0 -> l_param0.shape)
+         )
+         .apply(param0, CanyonCarverConfiguration::new)
+   );
+   public final FloatProvider verticalRotation;
+   public final CanyonCarverConfiguration.CanyonShapeConfiguration shape;
+
+   public CanyonCarverConfiguration(
+      float param0,
+      HeightProvider param1,
+      FloatProvider param2,
+      VerticalAnchor param3,
+      CarverDebugSettings param4,
+      HolderSet<Block> param5,
+      FloatProvider param6,
+      CanyonCarverConfiguration.CanyonShapeConfiguration param7
+   ) {
+      super(param0, param1, param2, param3, param4, param5);
+      this.verticalRotation = param6;
+      this.shape = param7;
+   }
+
+   public CanyonCarverConfiguration(CarverConfiguration param0, FloatProvider param1, CanyonCarverConfiguration.CanyonShapeConfiguration param2) {
+      this(param0.probability, param0.y, param0.yScale, param0.lavaLevel, param0.debugSettings, param0.replaceable, param1, param2);
+   }
+
+   public static class CanyonShapeConfiguration {
+      public static final Codec<CanyonCarverConfiguration.CanyonShapeConfiguration> CODEC = RecordCodecBuilder.create(
+         param0 -> param0.group(
+               FloatProvider.CODEC.fieldOf("distance_factor").forGetter(l_param0 -> l_param0.distanceFactor),
+               FloatProvider.CODEC.fieldOf("thickness").forGetter(l_param0 -> l_param0.thickness),
+               ExtraCodecs.NON_NEGATIVE_INT.fieldOf("width_smoothness").forGetter(l_param0 -> l_param0.widthSmoothness),
+               FloatProvider.CODEC.fieldOf("horizontal_radius_factor").forGetter(l_param0 -> l_param0.horizontalRadiusFactor),
+               Codec.FLOAT.fieldOf("vertical_radius_default_factor").forGetter(l_param0 -> l_param0.verticalRadiusDefaultFactor),
+               Codec.FLOAT.fieldOf("vertical_radius_center_factor").forGetter(l_param0 -> l_param0.verticalRadiusCenterFactor)
+            )
+            .apply(param0, CanyonCarverConfiguration.CanyonShapeConfiguration::new)
+      );
+      public final FloatProvider distanceFactor;
+      public final FloatProvider thickness;
+      public final int widthSmoothness;
+      public final FloatProvider horizontalRadiusFactor;
+      public final float verticalRadiusDefaultFactor;
+      public final float verticalRadiusCenterFactor;
+
+      public CanyonShapeConfiguration(FloatProvider param0, FloatProvider param1, int param2, FloatProvider param3, float param4, float param5) {
+         this.widthSmoothness = param2;
+         this.horizontalRadiusFactor = param3;
+         this.verticalRadiusDefaultFactor = param4;
+         this.verticalRadiusCenterFactor = param5;
+         this.distanceFactor = param0;
+         this.thickness = param1;
+      }
+   }
+}

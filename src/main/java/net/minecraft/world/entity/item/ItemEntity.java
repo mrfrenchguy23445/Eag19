@@ -1,0 +1,433 @@
+package net.minecraft.world.entity.item;
+
+import java.util.Objects;
+import java.util.UUID;
+import javax.annotation.Nullable;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.stats.Stats;
+import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.tags.FluidTags;
+import net.minecraft.tags.ItemTags;
+import net.minecraft.util.Mth;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.entity.TraceableEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.gameevent.GameEvent;
+import net.minecraft.world.phys.Vec3;
+
+public class ItemEntity extends Entity implements TraceableEntity {
+   private static final EntityDataAccessor<ItemStack> DATA_ITEM = SynchedEntityData.defineId(ItemEntity.class, EntityDataSerializers.ITEM_STACK);
+   private static final int LIFETIME = 6000;
+   private static final int INFINITE_PICKUP_DELAY = 32767;
+   private static final int INFINITE_LIFETIME = -32768;
+   private int age;
+   private int pickupDelay;
+   private int health = 5;
+   @Nullable
+   private UUID thrower;
+   @Nullable
+   private UUID target;
+   public final float bobOffs;
+
+   public ItemEntity(EntityType<? extends ItemEntity> param0, Level param1) {
+      super(param0, param1);
+      this.bobOffs = this.random.nextFloat() * (float) Math.PI * 2.0F;
+      this.setYRot(this.random.nextFloat() * 360.0F);
+   }
+
+   public ItemEntity(Level param0, double param1, double param3, double param5, ItemStack param7) {
+      this(param0, param1, param3, param5, param7, param0.random.nextDouble() * 0.2 - 0.1, 0.2, param0.random.nextDouble() * 0.2 - 0.1);
+   }
+
+   public ItemEntity(Level param0, double param1, double param3, double param5, ItemStack param7, double param8, double param10, double param12) {
+      this(EntityType.ITEM, param0);
+      this.setPos(param1, param3, param5);
+      this.setDeltaMovement(param8, param10, param12);
+      this.setItem(param7);
+   }
+
+   private ItemEntity(ItemEntity param0) {
+      super(param0.getType(), param0.level);
+      this.setItem(param0.getItem().copy());
+      this.copyPosition(param0);
+      this.age = param0.age;
+      this.bobOffs = param0.bobOffs;
+   }
+
+   @Override
+   public boolean dampensVibrations() {
+      return this.getItem().is(ItemTags.DAMPENS_VIBRATIONS);
+   }
+
+   @Nullable
+   @Override
+   public Entity getOwner() {
+      return this.thrower != null && this.level instanceof ServerLevel var1 ? var1.getEntity(this.thrower) : null;
+   }
+
+   @Override
+   protected Entity.MovementEmission getMovementEmission() {
+      return Entity.MovementEmission.NONE;
+   }
+
+   @Override
+   protected void defineSynchedData() {
+      this.getEntityData().define(DATA_ITEM, ItemStack.EMPTY);
+   }
+
+   @Override
+   public void tick() {
+      if (this.getItem().isEmpty()) {
+         this.discard();
+      } else {
+         super.tick();
+         if (this.pickupDelay > 0 && this.pickupDelay != 32767) {
+            this.pickupDelay--;
+         }
+
+         this.xo = this.getX();
+         this.yo = this.getY();
+         this.zo = this.getZ();
+         Vec3 var1 = this.getDeltaMovement();
+         float var2 = this.getEyeHeight() - 0.11111111F;
+         if (this.isInWater() && this.getFluidHeight(FluidTags.WATER) > var2) {
+            this.setUnderwaterMovement();
+         } else if (this.isInLava() && this.getFluidHeight(FluidTags.LAVA) > var2) {
+            this.setUnderLavaMovement();
+         } else if (!this.isNoGravity()) {
+            this.setDeltaMovement(this.getDeltaMovement().add(0.0, -0.04, 0.0));
+         }
+
+         if (this.level.isClientSide) {
+            this.noPhysics = false;
+         } else {
+            this.noPhysics = !this.level.noCollision(this, this.getBoundingBox().deflate(1.0E-7));
+            if (this.noPhysics) {
+               this.moveTowardsClosestSpace(this.getX(), (this.getBoundingBox().minY + this.getBoundingBox().maxY) / 2.0, this.getZ());
+            }
+         }
+
+         if (!this.onGround || this.getDeltaMovement().horizontalDistanceSqr() > 1.0E-5F || (this.tickCount + this.getId()) % 4 == 0) {
+            this.move(MoverType.SELF, this.getDeltaMovement());
+            float var3 = 0.98F;
+            if (this.onGround) {
+               var3 = this.level.getBlockState(BlockPos.containing(this.getX(), this.getY() - 1.0, this.getZ())).getBlock().getFriction() * 0.98F;
+            }
+
+            this.setDeltaMovement(this.getDeltaMovement().multiply(var3, 0.98, var3));
+            if (this.onGround) {
+               Vec3 var4 = this.getDeltaMovement();
+               if (var4.y < 0.0) {
+                  this.setDeltaMovement(var4.multiply(1.0, -0.5, 1.0));
+               }
+            }
+         }
+
+         boolean var3 = Mth.floor(this.xo) != Mth.floor(this.getX())
+            || Mth.floor(this.yo) != Mth.floor(this.getY())
+            || Mth.floor(this.zo) != Mth.floor(this.getZ());
+         int var4 = var3 ? 2 : 40;
+         if (this.tickCount % var4 == 0 && !this.level.isClientSide && this.isMergable()) {
+            this.mergeWithNeighbours();
+         }
+
+         if (this.age != -32768) {
+            this.age++;
+         }
+
+         this.hasImpulse = this.hasImpulse | this.updateInWaterStateAndDoFluidPushing();
+         if (!this.level.isClientSide) {
+            double var5 = this.getDeltaMovement().subtract(var1).lengthSqr();
+            if (var5 > 0.01) {
+               this.hasImpulse = true;
+            }
+         }
+
+         if (!this.level.isClientSide && this.age >= 6000) {
+            this.discard();
+         }
+      }
+   }
+
+   private void setUnderwaterMovement() {
+      Vec3 var1 = this.getDeltaMovement();
+      this.setDeltaMovement(var1.x * 0.99F, var1.y + (var1.y < 0.06F ? 5.0E-4F : 0.0F), var1.z * 0.99F);
+   }
+
+   private void setUnderLavaMovement() {
+      Vec3 var1 = this.getDeltaMovement();
+      this.setDeltaMovement(var1.x * 0.95F, var1.y + (var1.y < 0.06F ? 5.0E-4F : 0.0F), var1.z * 0.95F);
+   }
+
+   private void mergeWithNeighbours() {
+      if (this.isMergable()) {
+         for (ItemEntity var3 : this.level
+            .getEntitiesOfClass(ItemEntity.class, this.getBoundingBox().inflate(0.5, 0.0, 0.5), l_param0 -> l_param0 != this && l_param0.isMergable())) {
+            if (var3.isMergable()) {
+               this.tryToMerge(var3);
+               if (this.isRemoved()) {
+                  break;
+               }
+            }
+         }
+      }
+   }
+
+   private boolean isMergable() {
+      ItemStack var1 = this.getItem();
+      return this.isAlive() && this.pickupDelay != 32767 && this.age != -32768 && this.age < 6000 && var1.getCount() < var1.getMaxStackSize();
+   }
+
+   private void tryToMerge(ItemEntity param0) {
+      ItemStack var2 = this.getItem();
+      ItemStack var3 = param0.getItem();
+      if (Objects.equals(this.target, param0.target) && areMergable(var2, var3)) {
+         if (var3.getCount() < var2.getCount()) {
+            merge(this, var2, param0, var3);
+         } else {
+            merge(param0, var3, this, var2);
+         }
+      }
+   }
+
+   public static boolean areMergable(ItemStack param0, ItemStack param1) {
+      if (!param1.is(param0.getItem())) {
+         return false;
+      } else if (param1.getCount() + param0.getCount() > param1.getMaxStackSize()) {
+         return false;
+      } else {
+         return param1.hasTag() ^ param0.hasTag() ? false : !param1.hasTag() || param1.getTag().equals(param0.getTag());
+      }
+   }
+
+   public static ItemStack merge(ItemStack param0, ItemStack param1, int param2) {
+      int var3 = Math.min(Math.min(param0.getMaxStackSize(), param2) - param0.getCount(), param1.getCount());
+      ItemStack var4 = param0.copy();
+      var4.grow(var3);
+      param1.shrink(var3);
+      return var4;
+   }
+
+   private static void merge(ItemEntity param0, ItemStack param1, ItemStack param2) {
+      ItemStack var3 = merge(param1, param2, 64);
+      param0.setItem(var3);
+   }
+
+   private static void merge(ItemEntity param0, ItemStack param1, ItemEntity param2, ItemStack param3) {
+      merge(param0, param1, param3);
+      param0.pickupDelay = Math.max(param0.pickupDelay, param2.pickupDelay);
+      param0.age = Math.min(param0.age, param2.age);
+      if (param3.isEmpty()) {
+         param2.discard();
+      }
+   }
+
+   @Override
+   public boolean fireImmune() {
+      return this.getItem().getItem().isFireResistant() || super.fireImmune();
+   }
+
+   @Override
+   public boolean hurt(DamageSource param0, float param1) {
+      if (this.isInvulnerableTo(param0)) {
+         return false;
+      }
+
+      if (!this.getItem().isEmpty() && this.getItem().is(Items.NETHER_STAR) && param0.is(DamageTypeTags.IS_EXPLOSION)) {
+         return false;
+      }
+
+      if (!this.getItem().getItem().canBeHurtBy(param0)) {
+         return false;
+      }
+
+      if (this.level.isClientSide) {
+         return true;
+      }
+
+      this.markHurt();
+      this.health = (int)(this.health - param1);
+      this.gameEvent(GameEvent.ENTITY_DAMAGE, param0.getEntity());
+      if (this.health <= 0) {
+         this.getItem().onDestroyed(this);
+         this.discard();
+      }
+
+      return true;
+   }
+
+   @Override
+   public void addAdditionalSaveData(CompoundTag param0) {
+      param0.putShort("Health", (short)this.health);
+      param0.putShort("Age", (short)this.age);
+      param0.putShort("PickupDelay", (short)this.pickupDelay);
+      if (this.thrower != null) {
+         param0.putUUID("Thrower", this.thrower);
+      }
+
+      if (this.target != null) {
+         param0.putUUID("Owner", this.target);
+      }
+
+      if (!this.getItem().isEmpty()) {
+         param0.put("Item", this.getItem().save(new CompoundTag()));
+      }
+   }
+
+   @Override
+   public void readAdditionalSaveData(CompoundTag param0) {
+      this.health = param0.getShort("Health");
+      this.age = param0.getShort("Age");
+      if (param0.contains("PickupDelay")) {
+         this.pickupDelay = param0.getShort("PickupDelay");
+      }
+
+      if (param0.hasUUID("Owner")) {
+         this.target = param0.getUUID("Owner");
+      }
+
+      if (param0.hasUUID("Thrower")) {
+         this.thrower = param0.getUUID("Thrower");
+      }
+
+      CompoundTag var2 = param0.getCompound("Item");
+      this.setItem(ItemStack.of(var2));
+      if (this.getItem().isEmpty()) {
+         this.discard();
+      }
+   }
+
+   @Override
+   public void playerTouch(Player param0) {
+      if (!this.level.isClientSide) {
+         ItemStack var2 = this.getItem();
+         Item var3 = var2.getItem();
+         int var4 = var2.getCount();
+         if (this.pickupDelay == 0 && (this.target == null || this.target.equals(param0.getUUID())) && param0.getInventory().add(var2)) {
+            param0.take(this, var4);
+            if (var2.isEmpty()) {
+               this.discard();
+               var2.setCount(var4);
+            }
+
+            param0.awardStat(Stats.ITEM_PICKED_UP.get(var3), var4);
+            param0.onItemPickup(this);
+         }
+      }
+   }
+
+   @Override
+   public Component getName() {
+      Component var1 = this.getCustomName();
+      return var1 != null ? var1 : Component.translatable(this.getItem().getDescriptionId());
+   }
+
+   @Override
+   public boolean isAttackable() {
+      return false;
+   }
+
+   @Nullable
+   @Override
+   public Entity changeDimension(ServerLevel param0) {
+      Entity var2 = super.changeDimension(param0);
+      if (!this.level.isClientSide && var2 instanceof ItemEntity) {
+         ((ItemEntity)var2).mergeWithNeighbours();
+      }
+
+      return var2;
+   }
+
+   public ItemStack getItem() {
+      return this.getEntityData().get(DATA_ITEM);
+   }
+
+   public void setItem(ItemStack param0) {
+      this.getEntityData().set(DATA_ITEM, param0);
+   }
+
+   @Override
+   public void onSyncedDataUpdated(EntityDataAccessor<?> param0) {
+      super.onSyncedDataUpdated(param0);
+      if (DATA_ITEM.equals(param0)) {
+         this.getItem().setEntityRepresentation(this);
+      }
+   }
+
+   public void setTarget(@Nullable UUID param0) {
+      this.target = param0;
+   }
+
+   public void setThrower(@Nullable UUID param0) {
+      this.thrower = param0;
+   }
+
+   public int getAge() {
+      return this.age;
+   }
+
+   public void setDefaultPickUpDelay() {
+      this.pickupDelay = 10;
+   }
+
+   public void setNoPickUpDelay() {
+      this.pickupDelay = 0;
+   }
+
+   public void setNeverPickUp() {
+      this.pickupDelay = 32767;
+   }
+
+   public void setPickUpDelay(int param0) {
+      this.pickupDelay = param0;
+   }
+
+   public boolean hasPickUpDelay() {
+      return this.pickupDelay > 0;
+   }
+
+   public void setUnlimitedLifetime() {
+      this.age = -32768;
+   }
+
+   public void setExtendedLifetime() {
+      this.age = -6000;
+   }
+
+   public void makeFakeItem() {
+      this.setNeverPickUp();
+      this.age = 5999;
+   }
+
+   public float getSpin(float param0) {
+      return (this.getAge() + param0) / 20.0F + this.bobOffs;
+   }
+
+   public ItemEntity copy() {
+      return new ItemEntity(this);
+   }
+
+   @Override
+   public SoundSource getSoundSource() {
+      return SoundSource.AMBIENT;
+   }
+
+   @Override
+   public float getVisualRotationYInDegrees() {
+      return 180.0F - this.getSpin(0.5F) / (float) (Math.PI * 2) * 360.0F;
+   }
+}

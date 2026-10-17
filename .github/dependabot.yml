@@ -1,0 +1,136 @@
+# Dependabot configuration for Eag19 (EaglercraftX 1.19.4 port).
+#
+# IMPORTANT -- read before removing anything from the `ignore` lists below.
+#
+# This project is not an ordinary application. Its dependency versions are
+# mostly NOT free choices:
+#
+#   * Every `mc-*` entry in gradle/libs.versions.toml is the exact coordinate
+#     set that Mojang ships for Minecraft 1.19.4 (see versions/1.19.4/
+#     version.json). The decompiled sources in src/main/java are written
+#     against those exact library APIs. Bumping any one of them to a newer
+#     release desynchronises javac from the game code and breaks the build.
+#
+#   * `gson`, `guava`, `slf4j-api` and `joml` are vendored as *source* under
+#     src/main/java. Their coordinates are declared in the catalog for
+#     reference only and are excluded from the resolvable classpath in
+#     build.gradle.kts. A "bump" here would do nothing at best.
+#
+#   * The TeaVM plugin used by the WASM-GC target is a custom EAGLER fork
+#     (0.12.1-EAGLER-R3), published to a private GitHub Pages maven repo, not
+#     Maven Central. The `com.resentclient.oss.eaglercraft.build` plugin is
+#     version 0.0.0 and resolves from the in-tree file repository at
+#     gradle/local-libs. Dependabot cannot update either one.
+#
+# So Dependabot is deliberately scoped to the dependencies that really can
+# move: the Gradle wrapper, the CI action versions, and the handful of
+# libraries that are not pinned to Mojang's manifest.
+
+version: 2
+
+updates:
+  # ---------------------------------------------------------------------------
+  # Gradle wrapper + build scripts
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - gradle
+    commit-message:
+      prefix: "build(gradle)"
+    groups:
+      # One PR for the wrapper instead of one per Gradle subsystem.
+      gradle-wrapper:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # --- Pinned to Minecraft 1.19.4's version.json. Do not touch. ---
+      - dependency-name: "com.ibm.icu:icu4j"
+      - dependency-name: "com.mojang:authlib"
+      - dependency-name: "com.mojang:brigadier"
+      - dependency-name: "com.mojang:datafixerupper"
+      - dependency-name: "com.mojang:logging"
+      - dependency-name: "com.mojang:blocklist"
+      - dependency-name: "com.mojang:patchy"
+      - dependency-name: "it.unimi.dsi:fastutil"
+      - dependency-name: "com.mojang:text2speech"
+      - dependency-name: "com.mojang:realms"
+      - dependency-name: "commons-codec:commons-codec"
+      - dependency-name: "commons-io:commons-io"
+      - dependency-name: "org.apache.commons:commons-compress"
+      - dependency-name: "org.apache.commons:commons-lang3"
+      - dependency-name: "net.sf.jopt-simple:jopt-simple"
+      - dependency-name: "org.apache.httpcomponents:httpclient"
+      - dependency-name: "org.apache.httpcomponents:httpcore"
+      - dependency-name: "org.apache.logging.log4j:log4j-api"
+      - dependency-name: "org.apache.logging.log4j:log4j-core"
+      - dependency-name: "org.apache.logging.log4j:log4j-slf4j2-impl"
+      - dependency-name: "com.github.oshi:oshi-core"
+      - dependency-name: "net.java.dev.jna:jna"
+      - dependency-name: "net.java.dev.jna:jna-platform"
+      - dependency-name: "org.jetbrains:annotations"
+      # netty and LWJGL in the catalog are the 1.19.4-pinned compile-time set.
+      - dependency-name: "io.netty:netty-common"
+      - dependency-name: "io.netty:netty-buffer"
+      - dependency-name: "io.netty:netty-transport"
+      - dependency-name: "io.netty:netty-resolver"
+      - dependency-name: "io.netty:netty-codec"
+      - dependency-name: "io.netty:netty-handler"
+      - dependency-name: "io.netty:netty-transport-native-unix-common"
+      - dependency-name: "io.netty:netty-transport-classes-epoll"
+      - dependency-name: "org.lwjgl:lwjgl"
+      - dependency-name: "org.lwjgl:lwjgl-glfw"
+      - dependency-name: "org.lwjgl:lwjgl-opengl"
+      - dependency-name: "org.lwjgl:lwjgl-opengles"
+      - dependency-name: "org.lwjgl:lwjgl-stb"
+      - dependency-name: "org.lwjgl:lwjgl-tinyfd"
+      - dependency-name: "org.lwjgl:lwjgl-openal"
+      # --- Vendored as source; coordinates are reference-only. ---
+      - dependency-name: "com.google.code.gson:gson"
+      - dependency-name: "com.google.guava:guava"
+      - dependency-name: "com.google.guava:failureaccess"
+      - dependency-name: "org.slf4j:slf4j-api"
+      - dependency-name: "org.joml:joml"
+      # --- Custom/unreachable: EAGLER TeaVM fork + in-tree local plugin. ---
+      - dependency-name: "org.teavm"
+      - dependency-name: "com.resentclient.oss.eaglercraft.build"
+
+  # ---------------------------------------------------------------------------
+  # GitHub Actions used by CI
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - ci
+    commit-message:
+      prefix: "ci"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # NOTE: no `docker` ecosystem entry on purpose. There is no Dockerfile in the
+  # tree, and Dependabot fails the whole run with "no package manager manifest
+  # found" if an ecosystem is declared for a directory that has none. Add the
+  # entry in the same commit that introduces the image.
+  #
+  # NOTE: there is no `npm`/`maven` ecosystem either -- this is a Gradle build,
+  # and Maven coordinates declared through libs.versions.toml are picked up by
+  # the `gradle` ecosystem above.

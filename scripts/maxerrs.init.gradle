@@ -1,0 +1,13 @@
+// Raises javac's error cap. javac stops reporting after 100 errors by default,
+// so a badly broken target just prints "100 errors" and hides the real count.
+//
+// Usage:
+//   ./gradlew :target_teavm_javascript:compileJava --init-script scripts/maxerrs.init.gradle
+//
+// Kept as an init script rather than a build.gradle.kts change so it never
+// affects a normal build or CI.
+allprojects {
+	tasks.withType(JavaCompile).configureEach {
+		options.compilerArgs << "-Xmaxerrs" << "100000"
+	}
+}

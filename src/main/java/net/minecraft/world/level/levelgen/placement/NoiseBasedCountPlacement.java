@@ -1,0 +1,42 @@
+package net.minecraft.world.level.levelgen.placement;
+
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.core.BlockPos;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.biome.Biome;
+
+public class NoiseBasedCountPlacement extends RepeatingPlacement {
+   public static final Codec<NoiseBasedCountPlacement> CODEC = RecordCodecBuilder.create(
+      param0 -> param0.group(
+            Codec.INT.fieldOf("noise_to_count_ratio").forGetter(l_param0 -> l_param0.noiseToCountRatio),
+            Codec.DOUBLE.fieldOf("noise_factor").forGetter(l_param0 -> l_param0.noiseFactor),
+            Codec.DOUBLE.fieldOf("noise_offset").orElse(0.0).forGetter(l_param0 -> l_param0.noiseOffset)
+         )
+         .apply(param0, NoiseBasedCountPlacement::new)
+   );
+   private final int noiseToCountRatio;
+   private final double noiseFactor;
+   private final double noiseOffset;
+
+   private NoiseBasedCountPlacement(int param0, double param1, double param3) {
+      this.noiseToCountRatio = param0;
+      this.noiseFactor = param1;
+      this.noiseOffset = param3;
+   }
+
+   public static NoiseBasedCountPlacement of(int param0, double param1, double param3) {
+      return new NoiseBasedCountPlacement(param0, param1, param3);
+   }
+
+   @Override
+   protected int count(RandomSource param0, BlockPos param1) {
+      double var3 = Biome.BIOME_INFO_NOISE.getValue(param1.getX() / this.noiseFactor, param1.getZ() / this.noiseFactor, false);
+      return (int)Math.ceil((var3 + this.noiseOffset) * this.noiseToCountRatio);
+   }
+
+   @Override
+   public PlacementModifierType<?> type() {
+      return PlacementModifierType.NOISE_BASED_COUNT;
+   }
+}

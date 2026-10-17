@@ -1,0 +1,60 @@
+package net.minecraft.world.level.entity;
+
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Maps;
+import com.mojang.logging.LogUtils;
+import it.unimi.dsi.fastutil.ints.Int2ObjectLinkedOpenHashMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import java.util.Map;
+import java.util.UUID;
+import javax.annotation.Nullable;
+import net.minecraft.util.AbortableIterationConsumer;
+import org.slf4j.Logger;
+
+public class EntityLookup<T extends EntityAccess> {
+   private static final Logger LOGGER = LogUtils.getLogger();
+   private final Int2ObjectMap<T> byId = new Int2ObjectLinkedOpenHashMap<>();
+   private final Map<UUID, T> byUuid = Maps.newHashMap();
+
+   public <U extends T> void getEntities(EntityTypeTest<T, U> param0, AbortableIterationConsumer<U> param1) {
+      for (T var4 : this.byId.values()) {
+         U var5 = (U)param0.tryCast(var4);
+         if (var5 != null && param1.accept(var5).shouldAbort()) {
+            return;
+         }
+      }
+   }
+
+   public Iterable<T> getAllEntities() {
+      return Iterables.unmodifiableIterable(this.byId.values());
+   }
+
+   public void add(T param0) {
+      UUID var2 = param0.getUUID();
+      if (this.byUuid.containsKey(var2)) {
+         LOGGER.warn("Duplicate entity UUID {}: {}", var2, param0);
+      } else {
+         this.byUuid.put(var2, param0);
+         this.byId.put(param0.getId(), param0);
+      }
+   }
+
+   public void remove(T param0) {
+      this.byUuid.remove(param0.getUUID());
+      this.byId.remove(param0.getId());
+   }
+
+   @Nullable
+   public T getEntity(int param0) {
+      return this.byId.get(param0);
+   }
+
+   @Nullable
+   public T getEntity(UUID param0) {
+      return this.byUuid.get(param0);
+   }
+
+   public int count() {
+      return this.byUuid.size();
+   }
+}

@@ -1,0 +1,169 @@
+package net.minecraft.world.level.block;
+
+import javax.annotation.Nullable;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelAccessor;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.BlockSetType;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
+import net.minecraft.world.level.block.state.properties.Half;
+import net.minecraft.world.level.gameevent.GameEvent;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.material.Fluids;
+import net.minecraft.world.level.material.Material;
+import net.minecraft.world.level.pathfinder.PathComputationType;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.VoxelShape;
+
+public class TrapDoorBlock extends HorizontalDirectionalBlock implements SimpleWaterloggedBlock {
+   public static final BooleanProperty OPEN = BlockStateProperties.OPEN;
+   public static final EnumProperty<Half> HALF = BlockStateProperties.HALF;
+   public static final BooleanProperty POWERED = BlockStateProperties.POWERED;
+   public static final BooleanProperty WATERLOGGED = BlockStateProperties.WATERLOGGED;
+   protected static final int AABB_THICKNESS = 3;
+   protected static final VoxelShape EAST_OPEN_AABB = Block.box(0.0, 0.0, 0.0, 3.0, 16.0, 16.0);
+   protected static final VoxelShape WEST_OPEN_AABB = Block.box(13.0, 0.0, 0.0, 16.0, 16.0, 16.0);
+   protected static final VoxelShape SOUTH_OPEN_AABB = Block.box(0.0, 0.0, 0.0, 16.0, 16.0, 3.0);
+   protected static final VoxelShape NORTH_OPEN_AABB = Block.box(0.0, 0.0, 13.0, 16.0, 16.0, 16.0);
+   protected static final VoxelShape BOTTOM_AABB = Block.box(0.0, 0.0, 0.0, 16.0, 3.0, 16.0);
+   protected static final VoxelShape TOP_AABB = Block.box(0.0, 13.0, 0.0, 16.0, 16.0, 16.0);
+   private final BlockSetType type;
+
+   protected TrapDoorBlock(BlockBehaviour.Properties param0, BlockSetType param1) {
+      super(param0.sound(param1.soundType()));
+      this.type = param1;
+      this.registerDefaultState(
+         this.stateDefinition
+            .any()
+            .setValue(FACING, Direction.NORTH)
+            .setValue(OPEN, false)
+            .setValue(HALF, Half.BOTTOM)
+            .setValue(POWERED, false)
+            .setValue(WATERLOGGED, false)
+      );
+   }
+
+   @Override
+   public VoxelShape getShape(BlockState param0, BlockGetter param1, BlockPos param2, CollisionContext param3) {
+      if (!param0.getValue(OPEN)) {
+         return param0.getValue(HALF) == Half.TOP ? TOP_AABB : BOTTOM_AABB;
+      }
+
+      switch ((Direction)param0.getValue(FACING)) {
+         case NORTH:
+         default:
+            return NORTH_OPEN_AABB;
+         case SOUTH:
+            return SOUTH_OPEN_AABB;
+         case WEST:
+            return WEST_OPEN_AABB;
+         case EAST:
+            return EAST_OPEN_AABB;
+      }
+   }
+
+   @Override
+   public boolean isPathfindable(BlockState param0, BlockGetter param1, BlockPos param2, PathComputationType param3) {
+      switch (param3) {
+         case LAND:
+            return param0.getValue(OPEN);
+         case WATER:
+            return param0.getValue(WATERLOGGED);
+         case AIR:
+            return param0.getValue(OPEN);
+         default:
+            return false;
+      }
+   }
+
+   @Override
+   public InteractionResult use(BlockState param0, Level param1, BlockPos param2, Player param3, InteractionHand param4, BlockHitResult param5) {
+      if (this.material == Material.METAL) {
+         return InteractionResult.PASS;
+      }
+
+      param0 = param0.cycle(OPEN);
+      param1.setBlock(param2, param0, 2);
+      if (param0.getValue(WATERLOGGED)) {
+         param1.scheduleTick(param2, Fluids.WATER, Fluids.WATER.getTickDelay(param1));
+      }
+
+      this.playSound(param3, param1, param2, param0.getValue(OPEN));
+      return InteractionResult.sidedSuccess(param1.isClientSide);
+   }
+
+   protected void playSound(@Nullable Player param0, Level param1, BlockPos param2, boolean param3) {
+      param1.playSound(
+         param0, param2, param3 ? this.type.trapdoorOpen() : this.type.trapdoorClose(), SoundSource.BLOCKS, 1.0F, param1.getRandom().nextFloat() * 0.1F + 0.9F
+      );
+      param1.gameEvent(param0, param3 ? GameEvent.BLOCK_OPEN : GameEvent.BLOCK_CLOSE, param2);
+   }
+
+   @Override
+   public void neighborChanged(BlockState param0, Level param1, BlockPos param2, Block param3, BlockPos param4, boolean param5) {
+      if (!param1.isClientSide) {
+         boolean var7 = param1.hasNeighborSignal(param2);
+         if (var7 != param0.getValue(POWERED)) {
+            if (param0.getValue(OPEN) != var7) {
+               param0 = param0.setValue(OPEN, var7);
+               this.playSound(null, param1, param2, var7);
+            }
+
+            param1.setBlock(param2, param0.setValue(POWERED, var7), 2);
+            if (param0.getValue(WATERLOGGED)) {
+               param1.scheduleTick(param2, Fluids.WATER, Fluids.WATER.getTickDelay(param1));
+            }
+         }
+      }
+   }
+
+   @Override
+   public BlockState getStateForPlacement(BlockPlaceContext param0) {
+      BlockState var2 = this.defaultBlockState();
+      FluidState var3 = param0.getLevel().getFluidState(param0.getClickedPos());
+      Direction var4 = param0.getClickedFace();
+      if (!param0.replacingClickedOnBlock() && var4.getAxis().isHorizontal()) {
+         var2 = var2.setValue(FACING, var4).setValue(HALF, param0.getClickLocation().y - param0.getClickedPos().getY() > 0.5 ? Half.TOP : Half.BOTTOM);
+      } else {
+         var2 = var2.setValue(FACING, param0.getHorizontalDirection().getOpposite()).setValue(HALF, var4 == Direction.UP ? Half.BOTTOM : Half.TOP);
+      }
+
+      if (param0.getLevel().hasNeighborSignal(param0.getClickedPos())) {
+         var2 = var2.setValue(OPEN, true).setValue(POWERED, true);
+      }
+
+      return var2.setValue(WATERLOGGED, var3.getType() == Fluids.WATER);
+   }
+
+   @Override
+   protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> param0) {
+      param0.add(FACING, OPEN, HALF, POWERED, WATERLOGGED);
+   }
+
+   @Override
+   public FluidState getFluidState(BlockState param0) {
+      return param0.getValue(WATERLOGGED) ? Fluids.WATER.getSource(false) : super.getFluidState(param0);
+   }
+
+   @Override
+   public BlockState updateShape(BlockState param0, Direction param1, BlockState param2, LevelAccessor param3, BlockPos param4, BlockPos param5) {
+      if (param0.getValue(WATERLOGGED)) {
+         param3.scheduleTick(param4, Fluids.WATER, Fluids.WATER.getTickDelay(param3));
+      }
+
+      return super.updateShape(param0, param1, param2, param3, param4, param5);
+   }
+}
