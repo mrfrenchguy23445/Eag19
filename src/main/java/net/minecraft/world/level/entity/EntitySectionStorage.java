@@ -9,11 +9,8 @@ import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSortedSet;
 import java.util.Objects;
-import java.util.Spliterators;
-import java.util.PrimitiveIterator.OfLong;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 import javax.annotation.Nullable;
 import net.minecraft.core.SectionPos;
 import net.minecraft.util.AbortableIterationConsumer;
@@ -68,8 +65,9 @@ public class EntitySectionStorage<T extends EntityAccess> {
          return LongStream.empty();
       }
 
-      OfLong var6 = var5.iterator();
-      return StreamSupport.longStream(Spliterators.spliteratorUnknownSize(var6, 1301), false);
+      // Port note (wasm19): StreamSupport.longStream is not implemented in this classlib; the set is
+      // materialised and streamed through LongStream.of(long...). Callers only iterate the result.
+      return LongStream.of(var5.toLongArray());
    }
 
    private LongSortedSet getChunkSections(int param0, int param1) {

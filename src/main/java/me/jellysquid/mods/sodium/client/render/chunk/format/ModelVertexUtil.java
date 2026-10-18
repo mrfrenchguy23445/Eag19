@@ -7,9 +7,6 @@ public class ModelVertexUtil {
      * @return The resulting de-normalized unsigned short
      */
     public static short denormalizeVertexPositionFloatAsShort(float value) {
-        // Since we're skipping the scaling formerly done in ChunkModelVertexTransformer to preserve precision, this
-        // method actually takes input unnormalized within the range 0..256, and expands that to 0..65536.
-        // TODO: Restructure things to be less arbitrary here
         return (short) (value * 256.0f);
     }
 

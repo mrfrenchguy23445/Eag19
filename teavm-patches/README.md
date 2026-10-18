@@ -1,14 +1,15 @@
 # TeaVM patches
 
-Three upstream TeaVM classes are patched: two produce a wasm-GC module that V8
-refuses to compile, and one is a runtime data-loss bug in the classlib. The
+Five upstream TeaVM classes are patched: two produce a wasm-GC module that V8
+refuses to compile, one is a runtime data-loss bug in the classlib, and two are
+classlib members the wasm-GC link could not resolve at all. The
 patched `.class` files are shipped inside
 `gradle/local-libs/org/teavm/**` (a first-class `maven {}` repository declared at
 the top of `allprojects.repositories` in `build.gradle.kts`, so it wins the
 artifact lookup over the remote); `rebuild.sh` reproduces those jars from the
 sources here plus the pristine jars already in the Gradle cache.
 
-`docs/wasm-errors-todo.md` has the full evidence for all three. Summary:
+`docs/wasm-errors-todo.md` has the evidence for all five. Summary:
 
 ## `org.teavm.classlib.impl.record.ObjectMethodsSubstitutor` -> teavm-classlib
 
@@ -67,6 +68,41 @@ The `read(char[], int, int)` loop now leaves any unconsumed tail in place instea
 of calling `fillBuffer` on it. Correctness of `read` is unchanged; the only
 behaviour dropped is the pointless (and destructive) refill of a buffer that was
 just shown to still contain data.
+
+## `org.teavm.classlib.java.lang.TString` -> teavm-classlib
+
+The wasm-GC link failed with `Method java.lang.String.<init>([BIII)V was not
+found`, reported first from netty's `ByteBufUtil.decodeString` (line 1274).
+That is the long-deprecated JDK constructor `String(byte[] bytes, int hibyte,
+int offset, int count)` -- TeaVM's classlib never implemented it, because it
+only ever existed for pre-Unicode `DataInput`/`DataOutput` protocols, and netty
+still uses it to decode a byte slice as ISO-8859-1 (`hibyte == 0`).
+
+The patch adds the constructor with the JDK's exact signature and semantics:
+each byte becomes `(char) ((hibyte << 8) | (b & 0xFF))`, i.e. `hibyte == 0`
+widens each byte to its unsigned char value. It is `@Deprecated`, like the real
+JDK member -- patches mirror the platform API, they do not extend it -- and it
+delegates to a `hibyteToChars` helper so the bounds check is
+`Objects.checkFromIndexSize`, matching the JDK's
+`StringIndexOutOfBoundsException` behaviour.
+
+## `org.teavm.classlib.java.util.TSpliterators` -> teavm-classlib
+
+The link failed with `Class java.util.Spliterators$AbstractSpliterator was not
+found`, first reported from `SectionPos$1` (line 239). Four game/Guava sources
+extend it -- `Streams` (5 anonymous subclasses), `ImmutableSortedSet`,
+`SectionPos`, `ChunkPos` -- and patching those call sites would have meant
+rewriting working Guava code, so the missing nested class goes into the classlib
+instead.
+
+`AbstractSpliterator<T> implements TSpliterator<T>` is restored with the JDK's
+signatures: the `(long sizeEstimate, int characteristics)` protected
+constructor (including the JDK's `SIZED -> SUBSIZED` promotion, since batching
+callers filter on `SUBSIZED`), abstract `tryAdvance`, `estimateSize`,
+`characteristics`. `trySplit()` returns `null` instead of the JDK's batched
+splitting: every call site drives the spliterator sequentially on the one
+wasm-GC thread, so a split could only hand work to a thread that does not
+exist.
 
 ## Rebuilding
 

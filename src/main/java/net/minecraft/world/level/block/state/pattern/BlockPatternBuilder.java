@@ -1,9 +1,7 @@
 package net.minecraft.world.level.block.state.pattern;
 
-import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import java.lang.reflect.Array;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -69,7 +67,8 @@ public class BlockPatternBuilder {
 
    private Predicate<BlockInWorld>[][][] createPattern() {
       this.ensureAllCharactersMatched();
-      Predicate<BlockInWorld>[][][] var1 = (Predicate<BlockInWorld>[][][])Array.newInstance(Predicate.class, this.pattern.size(), this.height, this.width);
+      @SuppressWarnings("unchecked")
+      Predicate<BlockInWorld>[][][] var1 = new Predicate[this.pattern.size()][this.height][this.width];
 
       for (int var2 = 0; var2 < this.pattern.size(); var2++) {
          for (int var3 = 0; var3 < this.height; var3++) {

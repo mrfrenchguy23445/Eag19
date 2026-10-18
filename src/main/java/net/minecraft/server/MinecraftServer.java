@@ -93,8 +93,6 @@ import net.minecraft.server.players.GameProfileCache;
 import net.minecraft.server.players.PlayerList;
 import net.minecraft.server.players.ServerOpListEntry;
 import net.minecraft.server.players.UserWhiteList;
-import net.minecraft.util.Crypt;
-import net.minecraft.util.CryptException;
 import net.minecraft.util.FrameTimer;
 import net.minecraft.util.ModCheck;
 import net.minecraft.util.Mth;
@@ -1034,13 +1032,24 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
    }
 
    protected void initializeKeyPair() {
-      LOGGER.info("Generating keypair");
-
-      try {
-         this.keyPair = Crypt.generateKeyPair();
-      } catch (CryptException var1) {
-         throw new IllegalStateException("Failed to generate key pair", var1);
-      }
+      // Port note (wasm14): the RSA keypair is deliberately not generated. Upstream this called
+      // Crypt.generateKeyPair(), i.e. KeyPairGenerator.getInstance("RSA") with a 1024-bit key.
+      //
+      // TeaVM's WASM-GC classlib has no java.security.KeyPairGenerator, so the name is answered by
+      // the HOST JDK's jrt image instead -- scripts/audit-classlib.py reports it as host-JDK-served,
+      // as the one such class this path uses. That is the fragile resolution the audit exists to
+      // catch: the host class reaches a JCE provider (SunRsaSign) whose RSA implementation is not
+      // translatable, so this is a run-time failure that no link error would have announced.
+      //
+      // The keypair has exactly one use in this port. ServerLoginPacketListenerImpl reads it only
+      // under `usesAuthentication() && !isMemoryConnection()` (handleHello line 158, handleKey lines
+      // 175/183) to build the encrypted-login handshake; a browser client runs its integrated server
+      // in offline mode, so getKeyPair() below is never read. It now returns the null the field
+      // already held, which is what those gated callers would have seen had the field never been
+      // assigned. Leaving it unassigned keeps handleHello's gate honest: online-mode login stays
+      // unavailable here exactly as it was before, and it fails at that gate rather than inside a
+      // provider.
+      LOGGER.info("Skipping keypair generation: this port runs its server without encrypted login");
    }
 
    public void setDifficulty(Difficulty param0, boolean param1) {

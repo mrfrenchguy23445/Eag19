@@ -2,7 +2,7 @@
 # Rebuild the patched TeaVM jars that gradle/local-libs serves.
 #
 # Why this exists: gradle/local-libs/org/teavm/** holds jar files that are the
-# *upstream* jars with three .class files swapped out. Committing only the jars
+# *upstream* jars with seven .class files swapped out. Committing only the jars
 # means losing the ability to change the patches, and committing only the jars
 # with no recipe means losing the ability to reproduce them. So both the patch
 # sources and this recipe live here.
@@ -91,7 +91,9 @@ patch_into teavm-core \
 	org/teavm/vm/TeaVM.class
 patch_into teavm-classlib \
 	org/teavm/classlib/impl/record/ObjectMethodsSubstitutor.class \
-	org/teavm/classlib/java/io/TBufferedReader.class
+	org/teavm/classlib/java/io/TBufferedReader.class \
+	org/teavm/classlib/java/lang/TString.class \
+	org/teavm/classlib/java/util/TSpliterators.class
 
 echo "done. gradle picks jars up in place on the next resolve (artifact lookup"
 echo "is by content sha1, so no --refresh-dependencies needed)."

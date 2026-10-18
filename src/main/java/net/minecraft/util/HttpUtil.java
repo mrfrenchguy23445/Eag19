@@ -4,27 +4,15 @@ import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.mojang.logging.LogUtils;
-import java.io.DataOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
 import java.net.Proxy;
-import net.minecraft.Util;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import javax.annotation.Nullable;
 import net.minecraft.DefaultUncaughtExceptionHandler;
-import net.minecraft.network.chat.Component;
-import net.lax1dude.eaglercraft.v1_8.FileUtils;
-import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 
 public class HttpUtil {
@@ -45,113 +33,38 @@ public class HttpUtil {
    public static CompletableFuture<?> downloadTo(
       File param0, URL param1, Map<String, String> param2, int param3, @Nullable ProgressListener param4, Proxy param5
    ) {
-      return CompletableFuture.supplyAsync(() -> {
-         HttpURLConnection l_var6 = null;
-         InputStream l_var7 = null;
-         OutputStream l_var8 = null;
-         if (param4 != null) {
-            param4.progressStart(Component.translatable("resourcepack.downloading"));
-            param4.progressStage(Component.translatable("resourcepack.requesting"));
-         }
+      // Port note (wasm14): remote file download is refused in this build, for the same reason
+      // HttpTexture's is. Upstream this ran on DOWNLOAD_EXECUTOR and opened param1 through
+      // Util.openConnection, streaming the body into param0; on the WASM-GC classlib that resolves
+      // to an XHR-backed HttpURLConnection whose performRequest parks on org.teavm.runtime.Fiber,
+      // which this target does not provide, so the method failed the link:
+      //
+      //   Class org.teavm.runtime.Fiber is not supported on current target
+      //       at java.net.impl.XHRURLConnection.performRequest
+      //       at net.minecraft.util.HttpUtil.downloadTo(HttpUtil.java:71)
+      //       at net.minecraft.client.resources.DownloadedPackSource.downloadAndSelectResourcePack(...)
+      //
+      // HttpURLConnection is XHR under the hood here and XHR's performRequest is @Async, so this is
+      // not a missing class a shim could supply: making the call at all is what requires the Fiber
+      // continuation machinery, and no reachable HTTP call survives without it. That is the same
+      // conclusion Realms32BitWarningStatus reached for the Realms request path.
+      //
+      // The one caller is DownloadedPackSource.downloadAndSelectResourcePack, which asks for a
+      // server's resource pack. Nothing here can fetch one: this port's downloads run through
+      // XHR-backed connections, and there is no path that turns an XHR response into a file in
+      // serverPackDir. Refusing with a failed future rather than a silent completed one leaves the
+      // caller's own failure path intact -- clear the pack, delete the half-downloaded file, show
+      // the "pack application failed" prompt -- and gives its log line a cause instead of a hash
+      // mismatch against a file that was never written. The progress listener is stopped first so
+      // the download screen does not sit at "requesting" behind the prompt.
+      if (param4 != null) {
+         param4.stop();
+      }
 
-         try {
-            byte[] l_var9 = new byte[4096];
-            l_var6 = (HttpURLConnection)Util.openConnection(param1, param5);
-            l_var6.setInstanceFollowRedirects(true);
-            float l_var10 = 0.0F;
-            float l_var11 = param2.entrySet().size();
-
-            for (Entry<String, String> l_var13 : param2.entrySet()) {
-               l_var6.setRequestProperty(l_var13.getKey(), l_var13.getValue());
-               if (param4 != null) {
-                  param4.progressStagePercentage((int)(++l_var10 / l_var11 * 100.0F));
-               }
-            }
-
-            l_var7 = l_var6.getInputStream();
-            l_var11 = l_var6.getContentLength();
-            int l_var12 = l_var6.getContentLength();
-            if (param4 != null) {
-               param4.progressStage(Component.translatable("resourcepack.progress", String.format(Locale.ROOT, "%.2f", l_var11 / 1000.0F / 1000.0F)));
-            }
-
-            if (param0.exists()) {
-               long l_var13 = param0.length();
-               if (l_var13 == l_var12) {
-                  if (param4 != null) {
-                     param4.stop();
-                  }
-
-                  return null;
-               }
-
-               LOGGER.warn("Deleting {} as it does not match what we currently have ({} vs our {}).", param0, l_var12, l_var13);
-               FileUtils.deleteQuietly(param0);
-            } else if (param0.getParentFile() != null) {
-               param0.getParentFile().mkdirs();
-            }
-
-            l_var8 = new DataOutputStream(new FileOutputStream(param0));
-            if (param3 > 0 && l_var11 > param3) {
-               if (param4 != null) {
-                  param4.stop();
-               }
-
-               throw new IOException("Filesize is bigger than maximum allowed (file is " + l_var10 + ", limit is " + param3 + ")");
-            }
-
-            int l_var13;
-            while ((l_var13 = l_var7.read(l_var9)) >= 0) {
-               l_var10 += l_var13;
-               if (param4 != null) {
-                  param4.progressStagePercentage((int)(l_var10 / l_var11 * 100.0F));
-               }
-
-               if (param3 > 0 && l_var10 > param3) {
-                  if (param4 != null) {
-                     param4.stop();
-                  }
-
-                  throw new IOException("Filesize was bigger than maximum allowed (got >= " + l_var10 + ", limit was " + param3 + ")");
-               }
-
-               if (Thread.interrupted()) {
-                  LOGGER.error("INTERRUPTED");
-                  if (param4 != null) {
-                     param4.stop();
-                  }
-
-                  return null;
-               }
-
-               l_var8.write(l_var9, 0, l_var13);
-            }
-
-            if (param4 != null) {
-               param4.stop();
-            }
-         } catch (Throwable l_var9) {
-            LOGGER.error("Failed to download file", l_var9);
-            if (l_var6 != null) {
-               InputStream l_var10 = l_var6.getErrorStream();
-
-               try {
-                  LOGGER.error("HTTP response error: {}", IOUtils.toString(l_var10, StandardCharsets.UTF_8));
-               } catch (IOException l_var11) {
-                  LOGGER.error("Failed to read response from server");
-               }
-            }
-
-            if (param4 != null) {
-               param4.stop();
-            }
-         } finally {
-            IOUtils.closeQuietly(l_var7);
-            IOUtils.closeQuietly(l_var8);
-         }
-
-         return null;
-      }, DOWNLOAD_EXECUTOR);
+      LOGGER.warn("Not downloading {}: remote file download is disabled in this build", param1);
+      return CompletableFuture.failedFuture(
+         new IOException("Remote file download is disabled in this build; requested " + param1)
+      );
    }
 
    public static int getAvailablePort() {

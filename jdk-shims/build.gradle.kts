@@ -214,8 +214,15 @@ sourceSets {
 	//
 	// src-classlib/ is deliberately not folded into src-sunmisc either -- that one is
 	// patched into jdk.unsupported, and these types have nothing to do with it.
+	//
+	// compileClasspath also carries src/'s output, for exactly one family of classes:
+	// the javax.crypto shims in org/teavm/classlib/shims/ extend TKey (java.security.Key)
+	// and java.security.spec.AlgorithmParameterSpec, both of which are shims shipped by
+	// src/ rather than by the classlib jar. Nothing in the classlib jar shares a name
+	// with them, so adding src/'s output can only resolve types and never shadows one.
 	create("classlib") {
 		java.srcDirs("src-classlib")
+		compileClasspath += sourceSets["main"].output
 	}
 }
 

@@ -52,7 +52,11 @@ public class TagNetworkSerialization {
    ) {
       param2.tags.forEach((l_param3, l_param4) -> {
          TagKey<T> l_var5 = TagKey.create(param0, l_param3);
-         List<Holder<T>> l_var6 = l_param4.intStream().mapToObj(param1::getHolder).flatMap(Optional::stream).collect(Collectors.toUnmodifiableList());
+         // Port note (wasmGC): IntList.intStream() is not implemented; iterate via iterator/indices.
+         List<Holder<T>> l_var6 = new java.util.ArrayList<Holder<T>>(l_param4.size());
+         for (int i = 0; i < l_param4.size(); i++) {
+            param1.getHolder(l_param4.getInt(i)).ifPresent(l_var6::add);
+         }
          param3.accept(l_var5, l_var6);
       });
    }
