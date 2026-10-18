@@ -1032,7 +1032,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
    }
 
    protected void initializeKeyPair() {
-      // Port note (wasm14): the RSA keypair is deliberately not generated. Upstream this called
+      // Port note (wasm19): the RSA keypair is deliberately not generated. Upstream this called
       // Crypt.generateKeyPair(), i.e. KeyPairGenerator.getInstance("RSA") with a 1024-bit key.
       //
       // TeaVM's WASM-GC classlib has no java.security.KeyPairGenerator, so the name is answered by

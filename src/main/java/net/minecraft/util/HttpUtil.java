@@ -33,7 +33,7 @@ public class HttpUtil {
    public static CompletableFuture<?> downloadTo(
       File param0, URL param1, Map<String, String> param2, int param3, @Nullable ProgressListener param4, Proxy param5
    ) {
-      // Port note (wasm14): remote file download is refused in this build, for the same reason
+      // Port note (wasm19): remote file download is refused in this build, for the same reason
       // HttpTexture's is. Upstream this ran on DOWNLOAD_EXECUTOR and opened param1 through
       // Util.openConnection, streaming the body into param0; on the WASM-GC classlib that resolves
       // to an XHR-backed HttpURLConnection whose performRequest parks on org.teavm.runtime.Fiber,

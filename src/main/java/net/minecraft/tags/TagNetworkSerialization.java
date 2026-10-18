@@ -3,10 +3,11 @@ package net.minecraft.tags;
 import com.mojang.datafixers.util.Pair;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
@@ -52,12 +53,14 @@ public class TagNetworkSerialization {
    ) {
       param2.tags.forEach((l_param3, l_param4) -> {
          TagKey<T> l_var5 = TagKey.create(param0, l_param3);
-         // Port note (wasmGC): IntList.intStream() is not implemented; iterate via iterator/indices.
-         List<Holder<T>> l_var6 = new java.util.ArrayList<Holder<T>>(l_param4.size());
-         for (int i = 0; i < l_param4.size(); i++) {
-            param1.getHolder(l_param4.getInt(i)).ifPresent(l_var6::add);
+         // Port note (wasm19): IntList.intStream() is not implemented in this classlib; the values are
+         // walked by index, mapped to holders the same way, and wrapped unmodifiable to match the
+         // Collectors.toUnmodifiableList() the stream form returned.
+         List<Holder<T>> l_var7 = new ArrayList<>(l_param4.size());
+         for (int i = 0; i < l_param4.size(); ++i) {
+            param1.getHolder(l_param4.getInt(i)).ifPresent(l_var7::add);
          }
-         param3.accept(l_var5, l_var6);
+         param3.accept(l_var5, Collections.unmodifiableList(l_var7));
       });
    }
 

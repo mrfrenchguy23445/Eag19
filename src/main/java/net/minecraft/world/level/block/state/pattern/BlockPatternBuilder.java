@@ -67,6 +67,12 @@ public class BlockPatternBuilder {
 
    private Predicate<BlockInWorld>[][][] createPattern() {
       this.ensureAllCharactersMatched();
+      // Port note (wasm19): upstream built this with Array.newInstance(Predicate.class, size, height,
+      // width), which the wasm-GC link reported as "Method
+      // java.lang.reflect.Array.newInstance(Class,[I) was not found" at this line. A direct
+      // multi-dimensional array is the same object: the component type is the Predicate.class literal
+      // written next to it, so the reflective call bought nothing but an unchecked cast, and the
+      // classlib has no reflective array allocator to link against.
       @SuppressWarnings("unchecked")
       Predicate<BlockInWorld>[][][] var1 = new Predicate[this.pattern.size()][this.height][this.width];
 
