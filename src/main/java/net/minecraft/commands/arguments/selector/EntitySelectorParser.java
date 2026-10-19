@@ -24,6 +24,7 @@ import net.minecraft.commands.arguments.selector.options.EntitySelectorOptions;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.phys.AABB;
@@ -64,7 +65,26 @@ public class EntitySelectorParser {
    public static final BiConsumer<Vec3, List<? extends Entity>> ORDER_FURTHEST = (param0, param1) -> param1.sort(
       (l_param1, l_param2) -> Doubles.compare(l_param2.distanceToSqr(param0), l_param1.distanceToSqr(param0))
    );
-   public static final BiConsumer<Vec3, List<? extends Entity>> ORDER_RANDOM = (param0, param1) -> Collections.shuffle(param1);
+   // Collections.shuffle() bottoms out in java.util.Random, whose
+   // java.util.random.RandomGenerator interface dispatch compiles to an
+   // "unreachable" trap in this TeaVM wasm-GC build, so shuffling that way
+   // kills the client. Use Minecraft's self-contained RandomSource instead.
+   public static final BiConsumer<Vec3, List<? extends Entity>> ORDER_RANDOM = (param0, param1) -> {
+      // param1 is List<? extends Entity>, which accepts neither set() nor
+      // addAll(), so delegate to a helper that binds the element type.
+      shuffleList(param1);
+   };
+
+   private static <T> void shuffleList(List<T> param0) {
+      RandomSource var1 = RandomSource.create();
+
+      for (int var2 = param0.size() - 1; var2 > 0; var2--) {
+         int var3 = var1.nextInt(var2 + 1);
+         T var4 = param0.get(var2);
+         param0.set(var2, param0.get(var3));
+         param0.set(var3, var4);
+      }
+   }
    public static final BiFunction<SuggestionsBuilder, Consumer<SuggestionsBuilder>, CompletableFuture<Suggestions>> SUGGEST_NOTHING = (param0, param1) -> param0.buildFuture();
    private final StringReader reader;
    private final boolean allowSelectors;

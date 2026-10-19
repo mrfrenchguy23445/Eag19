@@ -389,7 +389,24 @@ public class ClientPacketListener implements TickablePacketListener, ClientGameP
       }
 
       List<ResourceKey<Level>> var2 = Lists.newArrayList(param0.levels());
-      Collections.shuffle(var2);
+
+      // Collections.shuffle() bottoms out in java.util.Random, which TeaVM's
+      // wasm-GC classlib implements on top of java.util.random.RandomGenerator.
+      // That interface call compiles to an "unreachable" trap in this build
+      // (the vtable entry for RandomGenerator.nextInt is missing), so reaching
+      // it kills the client with "RuntimeError: unreachable" the moment the
+      // server sends its login packet. Shuffle by hand with Minecraft's
+      // RandomSource instead, which is a self-contained LCG and is already used
+      // on every boot to pick the title screen splash text.
+      RandomSource var2_rng = RandomSource.create();
+
+      for (int var2_i = var2.size() - 1; var2_i > 0; var2_i--) {
+         int var2_j = var2_rng.nextInt(var2_i + 1);
+         ResourceKey<Level> var2_tmp = var2.get(var2_i);
+         var2.set(var2_i, var2.get(var2_j));
+         var2.set(var2_j, var2_tmp);
+      }
+
       this.levels = Sets.newLinkedHashSet(var2);
       ResourceKey<Level> var3 = param0.dimension();
       Holder<DimensionType> var4 = this.registryAccess.compositeAccess().registryOrThrow(Registries.DIMENSION_TYPE).getHolderOrThrow(param0.dimensionType());
