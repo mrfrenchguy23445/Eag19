@@ -9,7 +9,8 @@ signature, or V8 rejects the module again and the "fix" looks like a new error.
   anything else -> trap   valid for any signature, but unwinds into the game's
                           exception handler and usually kills boot
 
-funcIdx = codeIdx + 199 (199 imports), matching every other script here.
+funcIdx = codeIdx + 200 (200 imported functions in the wasm-gc module), matching
+every other script here.
 
 usage: auto-stub-kind.py <classes.wasm> <codeIdx> [codeIdx ...]
        (prints comma-separated codeIdx:kind)
@@ -17,7 +18,7 @@ usage: auto-stub-kind.py <classes.wasm> <codeIdx> [codeIdx ...]
 import re
 import sys
 
-IMPORTS = 199
+IMPORTS = 200
 HEADER = re.compile(r"^\s*\(func \(;(\d+);\)")
 
 

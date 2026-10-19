@@ -30,13 +30,29 @@ public final class ServerAddress {
       return this.hostAndPort.getPort();
    }
 
+   // Users may type a scheme (ws://, wss://, vanilla://) and/or a path; ServerAddress
+   // only parses the host:port portion, so strip those before parsing.
+   private static String stripSchemeAndPath(String param0) {
+      String var1 = param0.trim();
+      if (var1.regionMatches(true, 0, "wss://", 0, 6)) {
+         var1 = var1.substring(6);
+      } else if (var1.regionMatches(true, 0, "ws://", 0, 5)) {
+         var1 = var1.substring(5);
+      } else if (var1.regionMatches(true, 0, "vanilla://", 0, 10)) {
+         var1 = var1.substring(10);
+      }
+
+      int var2 = var1.indexOf(47);
+      return var2 >= 0 ? var1.substring(0, var2) : var1;
+   }
+
    public static ServerAddress parseString(String param0) {
       if (param0 == null) {
          return INVALID;
       }
 
       try {
-         HostAndPort var1 = HostAndPort.fromString(param0).withDefaultPort(25565);
+         HostAndPort var1 = HostAndPort.fromString(stripSchemeAndPath(param0)).withDefaultPort(25565);
          return var1.getHost().isEmpty() ? INVALID : new ServerAddress(var1);
       } catch (IllegalArgumentException var1) {
          LOGGER.info("Failed to parse URL {}", param0, var1);
@@ -45,8 +61,12 @@ public final class ServerAddress {
    }
 
    public static boolean isValidAddress(String param0) {
+      if (param0 == null) {
+         return false;
+      }
+
       try {
-         HostAndPort var1 = HostAndPort.fromString(param0);
+         HostAndPort var1 = HostAndPort.fromString(stripSchemeAndPath(param0));
          String var2 = var1.getHost();
          if (!var2.isEmpty()) {
             IDN.toASCII(var2);

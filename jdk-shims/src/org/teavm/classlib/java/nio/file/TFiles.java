@@ -283,30 +283,46 @@ public final class TFiles {
 	}
 
 	public static OutputStream newOutputStream(TPath param0, OpenOption... param1) throws IOException {
-		boolean var2 = false;
-		boolean var3 = false;
+		boolean var2 = false; // APPEND
+		boolean var3 = false; // create the file when it does not exist yet
+		boolean var4 = false; // discard any content the file already has
 
-		for (OpenOption var4 : param1) {
-			if (var4 == StandardOpenOption.APPEND) {
+		// The JDK defines an empty option set as CREATE + TRUNCATE_EXISTING + WRITE.
+		if (param1.length == 0) {
+			var3 = true;
+			var4 = true;
+		}
+
+		for (OpenOption var5 : param1) {
+			if (var5 == StandardOpenOption.APPEND) {
 				var2 = true;
-			} else if (var4 == StandardOpenOption.CREATE || var4 == StandardOpenOption.CREATE_NEW
-					|| var4 == StandardOpenOption.TRUNCATE_EXISTING) {
+			} else if (var5 == StandardOpenOption.CREATE || var5 == StandardOpenOption.CREATE_NEW) {
 				var3 = true;
+			} else if (var5 == StandardOpenOption.TRUNCATE_EXISTING) {
+				var3 = true;
+				var4 = true;
 			}
 		}
 
-		TEaglerPath var5 = p(param0);
-		if (var3 && !var5.exists()) {
-			createFile(var5);
+		TEaglerPath var6 = p(param0);
+		if (var3 && !var6.exists()) {
+			createFile(var6);
 		}
 
 		if (var2) {
-			return new TEaglerOutputStream(var5.open(false, true, true));
+			return new TEaglerOutputStream(var6.open(false, true, true));
 		}
 
-		// createAccessor(readable, writable, false) truncates, which is what
-		// newOutputStream means without APPEND.
-		return new TEaglerOutputStream(var5.open(false, true, false));
+		// createAccessor(readable, writable, false) only rewinds the position; it
+		// does not shorten the file, so a shorter write would leave the old tail
+		// behind. TRUNCATE_EXISTING -- which an empty option set implies -- means
+		// the previous content really does go away first.
+		VirtualFileAccessor var7 = var6.open(false, true, false);
+		if (var4) {
+			var7.resize(0);
+		}
+
+		return new TEaglerOutputStream(var7);
 	}
 
 	public static SeekableByteChannel newByteChannel(TPath param0, OpenOption... param1) throws IOException {
@@ -405,7 +421,9 @@ public final class TFiles {
 		byte[] var3 = new byte[8192];
 		int var4 = var1.read(var3);
 
-		while (var4 >= 0) {
+		// The JDK's own read(InputStream, int) also guards with > 0 rather than
+		// >= 0 so that a stream which reports 0 without being at EOF cannot spin.
+		while (var4 > 0) {
 			var2.write(var3, 0, var4);
 			var4 = var1.read(var3);
 		}

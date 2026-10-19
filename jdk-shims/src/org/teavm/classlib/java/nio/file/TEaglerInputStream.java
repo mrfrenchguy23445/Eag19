@@ -36,7 +36,15 @@ final class TEaglerInputStream extends InputStream {
 	@Override
 	public int read(byte[] param0, int param1, int param2) throws IOException {
 		this.checkOpen();
-		return this.accessor.read(param0, param1, param2);
+		if (param2 == 0) {
+			return 0;
+		}
+
+		// VirtualFileAccessor reports end of file as "0 bytes read", but
+		// InputStream has to report it as -1. Passing the 0 through makes every
+		// caller that loops while (read(...) >= 0) spin forever at EOF.
+		int var3 = this.accessor.read(param0, param1, param2);
+		return var3 <= 0 ? -1 : var3;
 	}
 
 	@Override

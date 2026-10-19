@@ -119,7 +119,7 @@ public class Connection implements ChannelHandler {
          return trimmed;
       }
 
-      return "ws://" + trimmed;
+      return "wss://" + trimmed;
    }
 
    public static String getHostFromURI(String webSocketURI) {

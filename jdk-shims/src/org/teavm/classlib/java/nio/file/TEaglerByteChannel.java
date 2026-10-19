@@ -41,10 +41,13 @@ final class TEaglerByteChannel implements SeekableByteChannel {
 
 		byte[] var2 = new byte[var1];
 		int var3 = this.accessor.read(var2, 0, var1);
-		if (var3 > 0) {
-			param0.put(var2, 0, var3);
+		if (var3 <= 0) {
+			// VirtualFileAccessor reports end of file as "0 bytes read", but
+			// ReadableByteChannel has to report it as -1.
+			return -1;
 		}
 
+		param0.put(var2, 0, var3);
 		return var3;
 	}
 
