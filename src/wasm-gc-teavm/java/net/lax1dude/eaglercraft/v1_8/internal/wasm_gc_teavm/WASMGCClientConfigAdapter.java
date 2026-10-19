@@ -31,6 +31,7 @@ import net.lax1dude.eaglercraft.v1_8.internal.IClientConfigAdapter;
 import net.lax1dude.eaglercraft.v1_8.internal.IClientConfigAdapterHooks;
 import net.lax1dude.eaglercraft.v1_8.internal.wasm_gc_teavm.opts.JSEaglercraftXOptsHooks;
 import net.lax1dude.eaglercraft.v1_8.internal.wasm_gc_teavm.opts.JSEaglercraftXOptsRoot;
+import net.lax1dude.eaglercraft.v1_8.internal.wasm_gc_teavm.opts.JSEaglercraftXOptsServer;
 
 public class WASMGCClientConfigAdapter implements IClientConfigAdapter {
 
@@ -84,6 +85,22 @@ public class WASMGCClientConfigAdapter implements IClientConfigAdapter {
 		
 		defaultLocale = eaglercraftXOpts.getLang("en_US");
 		serverToJoin = eaglercraftXOpts.getJoinServer(null);
+
+		defaultServers.clear();
+		JSArrayReader<JSEaglercraftXOptsServer> serversArray = eaglercraftXOpts.getServers();
+		if(serversArray != null) {
+			for(int i = 0, l = serversArray.getLength(); i < l; ++i) {
+				JSEaglercraftXOptsServer serverEntry = serversArray.get(i);
+				if(serverEntry == null) {
+					continue;
+				}
+				String serverAddr = serverEntry.getAddr(null);
+				if(serverAddr != null && !serverAddr.isEmpty()) {
+					String serverName = serverEntry.getName("Default Server #" + i);
+					defaultServers.add(new DefaultServer(serverName, serverAddr, serverEntry.getHideAddr(false)));
+				}
+			}
+		}
 		worldsDB = eaglercraftXOpts.getWorldsDB("worlds");
 		resourcePacksDB = eaglercraftXOpts.getResourcePacksDB("resourcePacks");
 		checkGLErrors = eaglercraftXOpts.getCheckGLErrors(false);

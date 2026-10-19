@@ -240,6 +240,7 @@ import net.lax1dude.eaglercraft.v1_8.PlatformLocale;
 import net.lax1dude.eaglercraft.v1_8.internal.PlatformApplication;
 import net.lax1dude.eaglercraft.v1_8.FileUtils;
 import net.lax1dude.eaglercraft.v1_8.BootDiag;
+import net.lax1dude.eaglercraft.v1_8.profile.EaglerProfile;
 import org.joml.Matrix4f;
 import org.slf4j.Logger;
 
@@ -268,7 +269,14 @@ public class Minecraft extends ReentrantBlockableEventLoop<Runnable> implements 
    private final ItemRenderer itemRenderer;
    public final ParticleEngine particleEngine;
    private final SearchRegistry searchRegistry = new SearchRegistry();
-   private final User user;
+   /**
+    * The session identity. Not {@code final} so a profile edit can re-point it:
+    * everything that reads {@link #getUser()} -- the Eagler handshake username,
+    * the offline UUID, the skin lookup -- must agree with
+    * {@link net.lax1dude.eaglercraft.v1_8.profile.EaglerProfile} without needing
+    * a reload. See {@link #refreshUserFromProfile()}.
+    */
+   private User user;
    public final Font font;
    public final Font fontFilterFishy;
    public final GameRenderer gameRenderer;
@@ -605,7 +613,9 @@ public class Minecraft extends ReentrantBlockableEventLoop<Runnable> implements 
       } else if (this.options.onboardAccessibility) {
          this.setScreen(new AccessibilityOnboardingScreen(this.options));
       } else {
-         this.setScreen(new TitleScreen(true));
+         // The launch sequence owns the first screen: profile editor, then --
+         // once only -- the attribution disclaimer, then the title screen.
+         this.setScreen(net.lax1dude.eaglercraft.v1_8.profile.BootFlow.firstScreen());
       }
    }
 
@@ -2354,6 +2364,26 @@ public class Minecraft extends ReentrantBlockableEventLoop<Runnable> implements 
 
    public User getUser() {
       return this.user;
+   }
+
+   /**
+    * Rebuilds the session {@link User} from the local Eagler profile.
+    *
+    * <p>The profile editor writes to {@link EaglerProfile} and local storage, but
+    * the handshake reads {@code this.user}, which was built once at launch. Left
+    * stale, a name typed mid-session would be saved and then silently ignored
+    * until the next reload. Call this after a successful profile save.</p>
+    */
+   public void refreshUserFromProfile() {
+      User previous = this.user;
+      this.user = new User(
+         EaglerProfile.getName(),
+         EaglerProfile.getPlayerUUIDString(),
+         previous.getAccessToken(),
+         previous.getXuid(),
+         previous.getClientId(),
+         previous.getType()
+      );
    }
 
    public PropertyMap getProfileProperties() {

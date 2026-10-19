@@ -2,9 +2,14 @@ package net.minecraft.client.multiplayer;
 
 import com.google.common.collect.Lists;
 import com.mojang.logging.LogUtils;
-import java.io.File;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.util.List;
 import javax.annotation.Nullable;
+import net.lax1dude.eaglercraft.v1_8.EagRuntime;
+import net.lax1dude.eaglercraft.v1_8.internal.IClientConfigAdapter;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.nbt.CompoundTag;
@@ -17,6 +22,14 @@ public class ServerList {
    private static final Logger LOGGER = LogUtils.getLogger();
    private static final ProcessorMailbox<Runnable> IO_MAILBOX = ProcessorMailbox.create(Util.backgroundExecutor(), "server-list-io");
    private static final int MAX_HIDDEN_SERVERS = 16;
+
+   /**
+    * Local-storage key for the serialised list. The web build has no filesystem,
+    * so {@code servers.dat} would silently vanish on every reload; the same NBT
+    * payload is instead kept in the browser's local storage, namespaced by the
+    * platform layer the same way {@code EaglerProfile} is.
+    */
+   private static final String STORAGE_KEY = "servers";
    private final Minecraft minecraft;
    private final List<ServerData> serverList = Lists.newArrayList();
    private final List<ServerData> hiddenServerList = Lists.newArrayList();
@@ -30,7 +43,19 @@ public class ServerList {
       try {
          this.serverList.clear();
          this.hiddenServerList.clear();
-         CompoundTag var1 = NbtIo.read(new File(this.minecraft.gameDirectory, "servers.dat"));
+         byte[] stored = EagRuntime.getStorage(STORAGE_KEY);
+         if (stored == null || stored.length == 0) {
+            // Never written: this is a fresh install, so show what the host page
+            // configured rather than an empty list. The distinction matters --
+            // an empty list the player has actually saved must stay empty.
+            this.seedConfiguredDefaults();
+            return;
+         }
+
+         CompoundTag var1;
+         try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(stored))) {
+            var1 = NbtIo.read(in);
+         }
          if (var1 == null) {
             return;
          }
@@ -48,6 +73,31 @@ public class ServerList {
          }
       } catch (Exception var1) {
          LOGGER.error("Couldn't load server list", var1);
+      }
+   }
+
+   /**
+    * Populates the list from the host page's {@code servers} config. Failures are
+    * non-fatal: a bad config entry must not stop the multiplayer screen opening.
+    */
+   private void seedConfiguredDefaults() {
+      try {
+         List<IClientConfigAdapter.DefaultServer> defaults = EagRuntime.getConfiguration().getDefaultServerList();
+         if (defaults == null) {
+            return;
+         }
+
+         for (IClientConfigAdapter.DefaultServer entry : defaults) {
+            if (entry == null || entry.addr == null || entry.addr.isEmpty()) {
+               continue;
+            }
+            String name = (entry.name == null || entry.name.isEmpty()) ? entry.addr : entry.name;
+            // The third ServerData argument is "isLan", not the config's hideAddress --
+            // this port's server entry has no address-hiding concept.
+            this.serverList.add(new ServerData(name, entry.addr, false));
+         }
+      } catch (Throwable t) {
+         LOGGER.error("Couldn't load configured default servers", t);
       }
    }
 
@@ -69,11 +119,12 @@ public class ServerList {
 
          CompoundTag var2 = new CompoundTag();
          var2.put("servers", var1);
-         File var3 = new File(this.minecraft.gameDirectory, "servers.dat.tmp");
-         NbtIo.write(var2, var3);
-         File var4 = new File(this.minecraft.gameDirectory, "servers.dat_old");
-         File var5 = new File(this.minecraft.gameDirectory, "servers.dat");
-         Util.safeReplaceFile(var5, var3, var4);
+
+         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+         try (DataOutputStream out = new DataOutputStream(bytes)) {
+            NbtIo.write(var2, out);
+         }
+         EagRuntime.setStorage(STORAGE_KEY, bytes.toByteArray());
       } catch (Exception var1) {
          LOGGER.error("Couldn't save server list", var1);
       }

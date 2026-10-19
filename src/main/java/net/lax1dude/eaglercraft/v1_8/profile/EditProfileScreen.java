@@ -23,18 +23,19 @@ import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 
 /**
- * The local player's profile editor: a username field and a live 3D preview of
- * the player wearing the single preset skin this port ships, Steve's.
+ * The local player's profile editor: a username field, a skin selector and a
+ * live 3D preview of the player wearing the selected skin.
  *
  * <p>This is the part of Eaglercraft 1.8's {@code GuiScreenEditProfile} that
  * makes sense here. The import/export screens, the FNAW high-poly skin models,
- * the custom skin upload, the preset skin/cape pickers and the skin/cape network
- * sync are not part of this port; there is exactly one skin and no cape, so the
- * screen stays focused on the name and the preview.</p>
+ * the custom skin upload, the cape picker and the skin/cape network sync are
+ * not part of this port; every cape is off and the only thing to choose is the
+ * name and which of the {@link DefaultSkins} presets to wear.</p>
  *
- * <p><b>Commit semantics.</b> The username is read from the text box and applied
- * on <em>Done</em> alone, because a half-typed name is not a name. <em>Cancel</em>
- * and <em>Escape</em> return without touching the profile.</p>
+ * <p><b>Commit semantics.</b> The username and the skin are staged locally and
+ * applied on <em>Done</em> alone, because a half-typed name is not a name and
+ * merely previewing a skin should not silently overwrite the stored one.
+ * <em>Cancel</em> and <em>Escape</em> return without touching the profile.</p>
  *
  * <p><b>Preview rendering.</b> There is no {@code Level} behind the title
  * screen, so there is no player entity to hand to the render dispatcher. The
@@ -55,6 +56,8 @@ public class EditProfileScreen extends Screen {
     private static final int PANEL_H = 130;
     private static final int FIELD_W = 138;
     private static final int FIELD_H = 20;
+    /** Skin selector buttons, sat either side of the preview frame. */
+    private static final int SKIN_BUTTON_W = 16;
 
     /** GUI pixels per model block; tuned so the figure fills the frame. */
     private static final float PREVIEW_SCALE = 50.0F;
@@ -88,17 +91,23 @@ public class EditProfileScreen extends Screen {
     @Nullable
     private PlayerModel<LivingEntity> model;
 
+    /** The classic-armed twin of {@link #model}, baked for the slim skins. */
+    @Nullable
+    private PlayerModel<LivingEntity> slimModel;
+
+    /**
+     * The skin the &lt; / &gt; controls move through, committed on Done. Reading and
+     * writing {@link EaglerProfile} directly would make opening this screen
+     * overwrite a stored skin even when the player cancels.
+     */
+    private DefaultSkins pendingSkin;
+
     public EditProfileScreen(Screen parent) {
         super(TITLE);
         this.parent = parent;
         this.originalName = EaglerProfile.getName();
         this.pendingName = this.originalName;
-        // This port ships exactly one skin and no cape (see DefaultSkins / the
-        // screen javadoc), so pin the profile to it rather than rendering
-        // whatever an older build may have stored.
-        EaglerProfile.setSkin(DefaultSkins.DEFAULT_STEVE);
-        EaglerProfile.setSkinModel(SkinModel.STEVE);
-        EaglerProfile.setCape(DefaultCapes.NO_CAPE);
+        this.pendingSkin = EaglerProfile.getSkin();
     }
 
     @Override
@@ -112,6 +121,18 @@ public class EditProfileScreen extends Screen {
         int panelY = top;
         this.panelX = panelX;
         this.panelY = panelY;
+
+        int skinY = panelY + PANEL_H / 2 - 10;
+        this.addRenderableWidget(
+                Button.builder(Component.literal("<"), button -> this.cycleSkin(-1))
+                        .bounds(panelX - SKIN_BUTTON_W - 2, skinY, SKIN_BUTTON_W, 20)
+                        .build()
+        );
+        this.addRenderableWidget(
+                Button.builder(Component.literal(">"), button -> this.cycleSkin(1))
+                        .bounds(panelX + PANEL_W + 2, skinY, SKIN_BUTTON_W, 20)
+                        .build()
+        );
 
         int fieldX = cx - FIELD_W / 2;
         // The gap is deliberately wider than the old +20: the skin-name line is drawn under
@@ -151,7 +172,7 @@ public class EditProfileScreen extends Screen {
         this.renderPreview(pose);
 
         drawCenteredString(pose, this.font, TITLE, this.width / 2, 14, WHITE);
-        drawCenteredString(pose, this.font, Component.literal(EaglerProfile.getSkin().name),
+        drawCenteredString(pose, this.font, Component.literal(this.pendingSkin.name),
                 this.width / 2, this.panelY + PANEL_H + 5, YELLOW);
         drawString(pose, this.font, USERNAME_LABEL, this.fieldX, this.fieldY - 12, GRAY);
 
@@ -189,7 +210,7 @@ public class EditProfileScreen extends Screen {
         Lighting.setupForEntityInInventory();
         MultiBufferSource.BufferSource buffer = this.minecraft.renderBuffers().bufferSource();
 
-        VertexConsumer body = buffer.getBuffer(RenderType.entityTranslucent(EaglerProfile.getSkinLocation()));
+        VertexConsumer body = buffer.getBuffer(RenderType.entityTranslucent(this.pendingSkin.location));
         model.renderToBuffer(pose, body, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, 1.0F, 1.0F, 1.0F, 1.0F);
 
         buffer.endBatch();
@@ -200,14 +221,47 @@ public class EditProfileScreen extends Screen {
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
     }
 
-    /** Bakes (once) and returns the classic-armed preview model. */
+    /**
+     * Bakes (once) and returns the preview model matching the selected skin's arm
+     * geometry. A slim skin drawn on the classic model widens each arm by a pixel,
+     * which reads as a rendering bug rather than as a different skin.
+     */
     private PlayerModel<LivingEntity> getPreviewModel() {
+        if (this.pendingSkin.model.isSlim()) {
+            if (this.slimModel == null) {
+                this.slimModel = new PlayerModel<>(
+                        this.minecraft.getEntityModels().bakeLayer(ModelLayers.PLAYER_SLIM), false);
+            }
+            return this.slimModel;
+        }
         if (this.model == null) {
             // EntityModel defaults young=true, which halves the model; this is an
             // adult, so force it off.
             this.model = new PlayerModel<>(this.minecraft.getEntityModels().bakeLayer(ModelLayers.PLAYER), false);
         }
         return this.model;
+    }
+
+    /** Steps through every preset skin, wrapping at either end. */
+    private void cycleSkin(int direction) {
+        DefaultSkins[] skins = DefaultSkins.defaultSkinsMap;
+        int index = -1;
+        for (int i = 0; i < skins.length; i++) {
+            if (skins[i] == this.pendingSkin) {
+                index = i;
+                break;
+            }
+        }
+        if (index < 0) {
+            index = 0;
+            direction = 0;
+        }
+        int next = (index + direction + skins.length) % skins.length;
+        this.pendingSkin = skins[next];
+        if (this.pendingSkin == null) {
+            // A hole in the id table should never blank the preview.
+            this.pendingSkin = DefaultSkins.DEFAULT_STEVE;
+        }
     }
 
     private void poseStanding(PlayerModel<LivingEntity> model) {
@@ -237,7 +291,13 @@ public class EditProfileScreen extends Screen {
     private void onDone() {
         String name = this.nameBox != null ? this.nameBox.getValue().trim() : this.originalName;
         EaglerProfile.setUsername(EaglerProfile.isValidUsername(name) ? name : this.originalName);
+        EaglerProfile.setSkin(this.pendingSkin);
+        EaglerProfile.setSkinModel(this.pendingSkin.model);
         EaglerProfile.save();
+        // The handshake and the skin lookup both read Minecraft's session User,
+        // which is built once at launch, so a name typed here would otherwise be
+        // saved and then ignored until the next reload.
+        this.minecraft.refreshUserFromProfile();
         this.minecraft.setScreen(this.parent);
     }
 

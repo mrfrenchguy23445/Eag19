@@ -28,6 +28,9 @@ public interface JSEaglercraftXOptsRoot extends JSObject {
 	@JSBody(params = { "def" }, script = "return (typeof this.joinServer === \"string\") ? this.joinServer : def;")
 	String getJoinServer(String defaultValue);
 
+	@JSBody(params = {}, script = "return (Array.isArray(this.servers)) ? this.servers : null;")
+	JSArrayReader<JSEaglercraftXOptsServer> getServers();
+
 	@JSBody(params = { "def" }, script = "return (typeof this.localesURI === \"string\") ? this.localesURI : def;")
 	String getLocalesURI(String defaultValue);
 
