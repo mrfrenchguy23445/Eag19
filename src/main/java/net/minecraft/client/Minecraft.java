@@ -1005,6 +1005,14 @@ public class Minecraft extends ReentrantBlockableEventLoop<Runnable> implements 
          this.screen.added();
       }
 
+      // Which screen is up is the single most useful thing to know when a
+      // client is misbehaving, and the game's own logger is a no-op in this
+      // build, so it goes to stdout where the browser console can see it.
+      try {
+         System.out.println("[screen] " + (param0 == null ? "null" : param0.getClass().getName()));
+      } catch (Throwable ignored) {
+      }
+
       BufferUploader.reset();
       if (param0 != null) {
          this.mouseHandler.releaseMouse();

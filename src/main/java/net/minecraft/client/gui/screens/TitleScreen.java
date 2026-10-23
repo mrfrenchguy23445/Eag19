@@ -56,12 +56,6 @@ public class TitleScreen extends Screen {
    @Nullable
    private TitleScreen.WarningLabel warningLabel;
    private final LogoRenderer logoRenderer;
-   /**
-    * The Singleplayer button. Kept only so {@link #render} can dim it: the button
-    * is drawn inactive, and a translucent black rectangle is laid over its
-    * bounds to make the disabled state unmistakable. Null on the demo screen,
-    * which builds its own button set.
-    */
    @Nullable
    private Button singleplayerButton;
 
@@ -180,7 +174,7 @@ public class TitleScreen extends Screen {
             .bounds(this.width / 2 - 100, param0, 200, 20)
             .build()
       );
-      this.singleplayerButton.active = false;
+      this.singleplayerButton.active = true;
       Component var3 = this.getMultiplayerDisabledReason();
       boolean var4 = var3 == null;
       Tooltip var5 = var3 != null ? Tooltip.create(var3) : null;
@@ -303,7 +297,7 @@ public class TitleScreen extends Screen {
             param0.popPose();
          }
 
-         String var8 = "Eaglercraft " + SharedConstants.getCurrentVersion().getName() + " by French";
+         String var8 = "Eag19 - u0(BETA)" + SharedConstants.getCurrentVersion().getName();
          drawString(param0, this.font, var8, 2, this.height - 10, 16777215 | var7);
 
          for (GuiEventListener var10 : this.children()) {

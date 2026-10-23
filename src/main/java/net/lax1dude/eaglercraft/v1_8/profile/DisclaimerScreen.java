@@ -81,7 +81,7 @@ public class DisclaimerScreen extends Screen {
 
         this.addRenderableWidget(Button.builder(CONTINUE, button -> {
             acknowledge();
-            this.minecraft.setScreen(new net.minecraft.client.gui.screens.TitleScreen(true));
+            this.minecraft.setScreen(BootFlow.afterDisclaimer());
         }).bounds(this.width / 2 - 75, y, 150, 20).build());
     }
 

@@ -517,6 +517,13 @@ public class ItemInHandRenderer {
       this.oMainHandHeight = this.mainHandHeight;
       this.oOffHandHeight = this.offHandHeight;
       LocalPlayer var1 = this.minecraft.player;
+      if (var1 == null) {
+         this.mainHandHeight = 0.0F;
+         this.offHandHeight = 0.0F;
+         this.mainHandItem = ItemStack.EMPTY;
+         this.offHandItem = ItemStack.EMPTY;
+         return;
+      }
       ItemStack var2 = var1.getMainHandItem();
       ItemStack var3 = var1.getOffhandItem();
       if (ItemStack.matches(this.mainHandItem, var2)) {

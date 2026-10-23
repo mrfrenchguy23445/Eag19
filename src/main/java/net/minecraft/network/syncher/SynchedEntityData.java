@@ -5,11 +5,11 @@ import io.netty.handler.codec.DecoderException;
 import io.netty.handler.codec.EncoderException;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.objects.Object2IntMap;
-import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import javax.annotation.Nullable;
 import net.minecraft.CrashReport;
@@ -22,7 +22,42 @@ import org.slf4j.Logger;
 
 public class SynchedEntityData {
    private static final Logger LOGGER = LogUtils.getLogger();
-   private static final Object2IntMap<Class<? extends Entity>> ENTITY_ID_POOL = new Object2IntOpenHashMap<>();
+   // TeaVM's wasm-gc backend gives java.lang.Class no usable hashCode()/equals(), so a
+   // pool keyed on Class objects misses every lookup and every entity class restarts its
+   // accessor range at id 0, colliding with Entity's own id 0. Class.getName() hashes
+   // correctly here, so the pool is keyed on the class name instead. The id assignment
+   // algorithm below is unchanged from vanilla, so the ids still match the server's.
+   private static final java.util.ArrayList<String> ENTITY_ID_POOL_KEYS = new java.util.ArrayList<String>();
+   private static final java.util.ArrayList<Integer> ENTITY_ID_POOL_VALS = new java.util.ArrayList<Integer>();
+
+   private static Integer getPool(String key) {
+      for (int i = 0; i < ENTITY_ID_POOL_KEYS.size(); i++) {
+         if (ENTITY_ID_POOL_KEYS.get(i).equals(key)) {
+            return ENTITY_ID_POOL_VALS.get(i);
+         }
+      }
+      return null;
+   }
+
+   private static boolean hasPool(String key) {
+      for (int i = 0; i < ENTITY_ID_POOL_KEYS.size(); i++) {
+         if (ENTITY_ID_POOL_KEYS.get(i).equals(key)) {
+            return true;
+         }
+      }
+      return false;
+   }
+
+   private static void putPool(String key, int val) {
+      for (int i = 0; i < ENTITY_ID_POOL_KEYS.size(); i++) {
+         if (ENTITY_ID_POOL_KEYS.get(i).equals(key)) {
+            ENTITY_ID_POOL_VALS.set(i, val);
+            return;
+         }
+      }
+      ENTITY_ID_POOL_KEYS.add(key);
+      ENTITY_ID_POOL_VALS.add(val);
+   }
    private static final int MAX_ID_VALUE = 254;
    private final Entity entity;
    private final Int2ObjectMap<SynchedEntityData.DataItem<?>> itemsById = new Int2ObjectOpenHashMap<>();
@@ -44,29 +79,48 @@ public class SynchedEntityData {
          }
       }
 
+      String poolKey = param0.getName();
+      if (poolKey == null) {
+         poolKey = param0.toString();
+      }
+      System.out.println("[syncherDBG] defineId class=" + param0.getName() + " key=" + poolKey + " poolHasKey=" + hasPool(poolKey));
+      Integer poolMax = getPool(poolKey);
       int var2;
-      if (ENTITY_ID_POOL.containsKey(param0)) {
-         var2 = ENTITY_ID_POOL.getInt(param0) + 1;
+      if (poolMax != null) {
+         var2 = poolMax + 1;
+         System.out.println("[syncherDBG] reuse existing key -> start=" + var2);
       } else {
          int var3 = 0;
          Class<?> var4 = param0;
-
-         while (var4 != Entity.class) {
+         System.out.println("[syncherDBG] walking up from " + var4.getName());
+         while (var4 != null && var4 != Entity.class) {
             var4 = var4.getSuperclass();
-            if (ENTITY_ID_POOL.containsKey(var4)) {
-               var3 = ENTITY_ID_POOL.getInt(var4) + 1;
-               break;
+            if (var4 != null) {
+               String pk = var4.getName();
+               if (pk == null) pk = var4.toString();
+               System.out.println("[syncherDBG]   check " + pk + " has=" + hasPool(pk));
+               Integer var5 = getPool(pk);
+               if (var5 != null) {
+                  var3 = var5 + 1;
+                  System.out.println("[syncherDBG]   found at " + pk + " -> " + var3);
+                  break;
+               }
             }
          }
 
          var2 = var3;
       }
 
+      try {
+         System.out.println("[syncher] " + poolKey + " id=" + var2);
+      } catch (Throwable var7) {
+      }
+
       if (var2 > 254) {
          throw new IllegalArgumentException("Data value id is too big with " + var2 + "! (Max is 254)");
       }
 
-      ENTITY_ID_POOL.put(param0, var2);
+      putPool(poolKey, var2);
       return param1.createAccessor(var2);
    }
 

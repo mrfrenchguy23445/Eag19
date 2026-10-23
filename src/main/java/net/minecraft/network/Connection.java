@@ -475,13 +475,22 @@ public class Connection implements ChannelHandler {
       if (this.isConnected()) {
          Component var2 = Component.translatable("disconnect.genericReason", "Internal Exception: " + param0);
          if (var1) {
-            LOGGER.debug("Failed to send packet", param0);
+            StringBuilder var5 = new StringBuilder("Connection fault while handling inbound data, disconnecting: ");
+            var5.append(param0);
+            try {
+               StackTraceElement[] var6 = param0.getStackTrace();
+               for (int var7 = 0; var7 < var6.length && var7 < 32; ++var7) {
+                  var5.append("\n  at ").append(var6[var7].toString());
+               }
+            } catch (Throwable var8) {
+            }
+            LOGGER.error(var5.toString(), param0);
             ConnectionProtocol var3 = this.getCurrentProtocol();
             Packet<?> var4 = var3 == ConnectionProtocol.LOGIN ? new ClientboundLoginDisconnectPacket(var2) : new ClientboundDisconnectPacket(var2);
             this.send(var4, PacketSendListener.thenRun(() -> this.disconnect(var2)));
             this.setReadOnly();
          } else {
-            LOGGER.debug("Double fault", param0);
+            LOGGER.error("Double fault, disconnecting", param0);
             this.disconnect(var2);
          }
       }
