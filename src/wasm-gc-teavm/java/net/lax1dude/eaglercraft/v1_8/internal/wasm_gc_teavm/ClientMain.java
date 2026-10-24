@@ -70,6 +70,7 @@ public class ClientMain {
 
 			try {
 				EagRuntime.create();
+				org.teavm.runtime.fs.VirtualFileSystemProvider.setInstance(new PersistentVirtualFileSystem());
 			}catch(ContextLostError t) {
 				systemErr.println("ClientMain: [ERROR] webgl context lost during initialization!");
 				PlatformRuntime.showContextLostScreen(EagRuntime.getStackTrace(t));

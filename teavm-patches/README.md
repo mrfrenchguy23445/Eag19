@@ -1,8 +1,7 @@
 # TeaVM patches
 
-Five upstream TeaVM classes are patched: two produce a wasm-GC module that V8
-refuses to compile, one is a runtime data-loss bug in the classlib, and two are
-classlib members the wasm-GC link could not resolve at all. The
+Upstream TeaVM classes are patched to address wasm-GC validation, classlib
+data loss, missing API members, and reflection dependency descriptors. The
 patched `.class` files are shipped inside
 `gradle/local-libs/org/teavm/**` (a first-class `maven {}` repository declared at
 the top of `allprojects.repositories` in `build.gradle.kts`, so it wins the
@@ -103,6 +102,45 @@ callers filter on `SUBSIZED`), abstract `tryAdvance`, `estimateSize`,
 splitting: every call site drives the spliterator sequentially on the one
 wasm-GC thread, so a split could only hand work to a thread that does not
 exist.
+
+## JVM integer joins and nominal GC locals
+
+`PreciseTypeInference` now joins every JVM integer family consistently, including
+boolean/byte pairs produced by boolean-array loads and field reads. These values
+use WASM `i32`; previously some combinations became `java.lang.Object`, producing
+invalid reference locals. Primitive arrays remain invariant, so `boolean[]` and
+`byte[]` join as `Object`, rather than becoming an `int[]`.
+
+The WASM-GC method generator also disables register reuse after SSA congruence
+classes are coalesced. This trades some register packing for distinct nominal
+reference-local types; the other backends retain their normal allocator behavior.
+No game method bodies are replaced with default returns.
+
+Run `python3 scripts/verify-wasm-compiler.py` to check integer/array joins and
+compile a boolean/map fixture to WASM, then validate that real output in V8. The
+fixture reproduced the invalid primitive/reference return before the inference
+repair.
+
+## Double-array spliterators
+
+The classlib now implements the double-array `spliterator` overloads used by
+Guava's chunk-generation collections. The implementation respects array slice
+bounds, visits elements in order, splits into disjoint slices, and reports the
+caller characteristics together with `SIZED` and `SUBSIZED`.
+
+## Reflection array dependency descriptors
+
+`DependencyGraphBuilder` and `ClassGenerator` declared interface arrays as
+`[java/lang/Class;`, and `WasmGCAnnotationDependencyListener` declared annotation
+arrays as `[java.lang.annotation.Annotation`. These are invalid JVM descriptors.
+The fast dependency analyzer rejects them before it can report browser link
+errors. The producers now declare `[Ljava/lang/Class;` and
+`[Ljava/lang/annotation/Annotation;`, respectively. No reflection results are
+removed or replaced with placeholder values.
+
+The rebuild script also accepts the local Maven jars as its base when Gradle has
+not cached a separate upstream binary, and puts those exact-version jars first on
+the compilation classpath.
 
 ## Rebuilding
 

@@ -60,9 +60,8 @@ import java.util.function.Supplier;
  *       so they behave like their untimed counterparts.</li>
  *   <li><b>Not thread-safe.</b> The JDK's is, via volatile fields and CAS. There is one
  *       thread here, so the fields are plain -- see the note on {@link #result}.</li>
- *   <li><b>Two-stage combinations are left-biased.</b> {@code thenCombine} and friends need
- *       two independent stages; with inline completion, waiting for the second can never
- *       terminate. Each such method documents what it does instead.</li>
+ *   <li><b>Either-stage combinations remain left-biased.</b> The both-stage methods,
+ *       including the chunk-save barrier's {@code thenCombine}, wait for both inputs.</li>
  * </ul>
  *
  * <p>Everything else -- {@link CompletionException} wrapping on {@code join}, the
@@ -776,31 +775,14 @@ public class TCompletableFuture<T> implements TFuture<T>, TCompletionStage<T> {
 
    // ---------------------------------------------------------------- two-stage combinations
    //
-   // All left-biased. Waiting on a second stage is not implementable here: with inline
-   // completion a pending stage never completes, so a faithful version would never fire.
-   // The call sites that exist in this codebase combine an already-completed stage, where
-   // left-bias is indistinguishable from correct behaviour.
+   // ChunkHolder combines futures that finish on separate mailbox turns. A pending
+   // right-hand stage must remain a dependency of the chunk's save barrier.
 
-   private static Object valueOfStage(TCompletionStage<?> stage) {
-      if (!(stage instanceof TCompletableFuture)) {
-         return null;
-      }
-
-      Object r = ((TCompletableFuture<?>)stage).result;
-      return r == PENDING || r instanceof AltResult ? null : r;
-   }
-
-   /** Left-biased: {@code other}'s value is {@code null} when it has not completed. */
    public <U, V> TCompletableFuture<V> thenCombine(TCompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn) {
+      Objects.requireNonNull(other);
       Objects.requireNonNull(fn);
-      Object ov = valueOfStage(other);
-      U typed = this.<U>castAny(ov);
-      return this.thenApply(v -> fn.apply(v, typed));
-   }
-
-   @SuppressWarnings("unchecked")
-   private <U> U castAny(Object o) {
-      return (U)o;
+      TCompletableFuture<? extends U> right = other.toCompletableFuture();
+      return allOf(this, right).thenApply(ignored -> fn.apply(this.join(), right.join()));
    }
 
    public <U, V> TCompletableFuture<V> thenCombineAsync(TCompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn) {
@@ -813,19 +795,18 @@ public class TCompletableFuture<T> implements TFuture<T>, TCompletionStage<T> {
 
    public TCompletableFuture<Void> thenAcceptBoth(TCompletionStage<?> other, BiConsumer<? super T, ?> action) {
       Objects.requireNonNull(action);
-      Object ov = valueOfStage(other);
-
-      // The JDK's second parameter is the open wildcard BiConsumer<? super T, ?>, and the
-      // argument here is a plain Object because a stage's value type is not nameable from a
-      // CompletionStage<?>. The capture cannot be expressed, so the call goes through a raw
-      // BiConsumer -- contained to this one lambda rather than widening the whole method.
       @SuppressWarnings({"unchecked", "rawtypes"})
       BiConsumer raw = (BiConsumer)action;
-      return this.thenAccept(v -> raw.accept(v, ov));
+      return this.thenCombine(other, (left, right) -> {
+         raw.accept(left, right);
+         return null;
+      });
    }
 
    public TCompletableFuture<Void> runAfterBoth(TCompletionStage<?> other, Runnable action) {
-      return this.thenRun(action);
+      Objects.requireNonNull(other);
+      Objects.requireNonNull(action);
+      return allOf(this, other.toCompletableFuture()).thenRun(action);
    }
 
    /** Left-biased: this stage always wins, so {@code fn} is applied to this stage's value. */

@@ -87,7 +87,7 @@ public class DebugCommand {
       String var4 = "debug-trace-" + Util.getFilenameFormattedDateTime() + ".txt";
 
       try {
-         Path var5 = var3.getFile("debug").toPath();
+         Path var5 = java.nio.file.Paths.get(var3.getFile("debug").getPath());
          Files.createDirectories(var5);
 
          try (Writer var6 = Files.newBufferedWriter(var5.resolve(var4), StandardCharsets.UTF_8)) {

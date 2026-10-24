@@ -617,12 +617,62 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
 
    public void halt(boolean param0) {
       this.running = false;
+      if (this.cooperative) {
+         if (!this.stopped) {
+            this.stopped = true;
+            try {
+               this.stopServer();
+            } finally {
+               this.services.profileCache().clearExecutor();
+            }
+         }
+         return;
+      }
       if (param0) {
          try {
             this.serverThread.join();
          } catch (InterruptedException var2) {
             LOGGER.error("Error while shutting down", var2);
          }
+      }
+   }
+
+   private boolean cooperative;
+
+   public void startCooperative() throws Exception {
+      this.cooperative = true;
+      if (!this.initServer()) throw new IllegalStateException("Failed to initialize integrated server");
+      this.nextTickTime = Util.getMillis();
+      this.status = this.buildServerStatus();
+      this.isReady = true;
+   }
+
+   /** Called by the client frame loop; bounded catch-up keeps input responsive. */
+   public void tickCooperative() {
+      if (!this.cooperative || !this.isReady || !this.running || this.stopped) return;
+      long now = Util.getMillis();
+      if (now < this.nextTickTime) return;
+      long deadline = now + 50L;
+      this.nextTickTime = Math.max(this.nextTickTime, now - 250L);
+      for (int ticks = 0; ticks < 5 && this.running && Util.getMillis() >= this.nextTickTime; ticks++) {
+         this.nextTickTime += 50L;
+         try {
+            if (this.debugCommandProfilerDelayStart) {
+               this.debugCommandProfilerDelayStart = false;
+               this.debugCommandProfiler = new MinecraftServer.TimeProfiler(Util.getNanos(), this.tickCount);
+            }
+            this.startMetricsRecordingTick();
+            this.runAllTasks();
+            this.tickServer(() -> Util.getMillis() < deadline);
+            this.endMetricsRecordingTick();
+            JvmProfiler.INSTANCE.onServerTick(this.averageTickTime);
+         } catch (Throwable failure) {
+            CrashReport report = constructOrExtractCrashReport(failure);
+            this.fillSystemReport(report.getSystemReport());
+            this.onServerCrash(report);
+            this.halt(false);
+         }
+         if (Util.getMillis() >= deadline) break;
       }
    }
 
@@ -922,7 +972,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
    }
 
    public boolean isShutdown() {
-      return !this.serverThread.isAlive();
+      return this.cooperative ? this.stopped : !this.serverThread.isAlive();
    }
 
    public File getFile(String param0) {

@@ -30,7 +30,12 @@ find_upstream() {
 	found="$(find "$CACHE/org.teavm/$artifact/$TEAVM_VER" \
 		-name "$artifact-$TEAVM_VER.jar" ! -name '*-sources.jar' \
 		! -name '*-javadoc.jar' 2>/dev/null | head -1)"
-	[ -n "$found" ] || { echo "upstream $artifact jar not in cache" >&2; exit 1; }
+	if [ -z "$found" ]; then
+		# Local Maven artifacts are not copied into Gradle's modules cache.
+		# All patched classes below are rebuilt, so this also supports offline rebuilds.
+		found="$LOCAL/$artifact/$TEAVM_VER/$artifact-$TEAVM_VER.jar"
+	fi
+	[ -f "$found" ] || { echo "no base jar for $artifact" >&2; exit 1; }
 	printf '%s' "$found"
 }
 
@@ -42,12 +47,13 @@ mkdir -p "$OUT/classes"
 find "$CACHE" -name '*.jar' \
 	! -name '*-sources.jar' ! -name '*-javadoc.jar' \
 	! -path '*/org.teavm/*/0.9.2/*' \
+	! -path '*/org.teavm/*/0.13.1/*' \
 	-print | tr '\n' ':' | sed 's/:$//' > "$OUT/cp.txt"
 
 find "$SRC" -name '*.java' | awk '{printf "\"%s\"\n", $0}' > "$OUT/sources.txt"
 echo "==> javac $(wc -l < "$OUT/sources.txt") sources"
 "$JAVA_HOME/bin/javac" -nowarn -encoding UTF-8 \
-	-classpath "$(cat "$OUT/cp.txt")" \
+	-classpath "$LOCAL/teavm-core/$TEAVM_VER/teavm-core-$TEAVM_VER.jar:$LOCAL/teavm-classlib/$TEAVM_VER/teavm-classlib-$TEAVM_VER.jar:$(cat "$OUT/cp.txt")" \
 	-d "$OUT/classes" @"$OUT/sources.txt"
 
 # Each jar gets only its own patched classes -- never the other jar's. Build
@@ -88,12 +94,16 @@ patch_into() {
 patch_into teavm-core \
 	org/teavm/backend/wasm/generate/gc/methods/WasmGCMethodGenerator.class \
 	org/teavm/model/util/RegisterAllocator.class \
-	org/teavm/vm/TeaVM.class
+	org/teavm/vm/TeaVM.class \
+	org/teavm/dependency/DependencyGraphBuilder.class \
+	org/teavm/backend/wasm/gc/PreciseTypeInference.class
 patch_into teavm-classlib \
 	org/teavm/classlib/impl/record/ObjectMethodsSubstitutor.class \
 	org/teavm/classlib/java/io/TBufferedReader.class \
 	org/teavm/classlib/java/lang/TString.class \
-	org/teavm/classlib/java/util/TSpliterators.class
+	org/teavm/classlib/java/util/TSpliterators.class \
+	org/teavm/classlib/java/lang/ClassGenerator.class \
+	org/teavm/classlib/java/lang/reflect/WasmGCAnnotationDependencyListener.class
 
 echo "done. gradle picks jars up in place on the next resolve (artifact lookup"
 echo "is by content sha1, so no --refresh-dependencies needed)."

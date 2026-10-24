@@ -44,9 +44,11 @@ import org.slf4j.Logger;
 
 public class ServerConnectionListener {
    private static final Logger LOGGER = LogUtils.getLogger();
-   public static final LazyLoadedValue<EventLoopGroup> SERVER_EVENT_GROUP = new LazyLoadedValue<>(
-      () -> new LocalEventLoopGroup(0, new ThreadFactoryBuilder().setNameFormat("Netty Server IO #%d").setDaemon(true).build())
-   );
+   // Kept behind a holder so a local game never initializes Netty's thread pools.
+   private static final class TcpEventGroup {
+      static final EventLoopGroup INSTANCE = new LocalEventLoopGroup(0,
+         new ThreadFactoryBuilder().setNameFormat("Netty Server IO #%d").setDaemon(true).build());
+   }
    final MinecraftServer server;
    public volatile boolean running;
    private final List<ChannelFuture> channels = Collections.synchronizedList(Lists.newArrayList());
@@ -60,7 +62,6 @@ public class ServerConnectionListener {
    public void startTcpServerListener(@Nullable InetAddress param0, int param1) throws IOException {
       synchronized (this.channels) {
          Class<? extends ServerSocketChannel> var4 = NioServerSocketChannel.class;
-         LazyLoadedValue<? extends EventLoopGroup> var5 = SERVER_EVENT_GROUP;
          LOGGER.info("Using default channel type");
 
          this.channels
@@ -88,7 +89,7 @@ public class ServerConnectionListener {
                         }
                      }
                   )
-                  .group(var5.get())
+                  .group(TcpEventGroup.INSTANCE)
                   .localAddress(param0, param1)
                   .bind()
                   .syncUninterruptibly()
@@ -96,34 +97,21 @@ public class ServerConnectionListener {
       }
    }
 
-   public SocketAddress startMemoryChannel() {
-      ChannelFuture var1;
-      synchronized (this.channels) {
-         var1 = new ServerBootstrap().channel(LocalServerChannel.class).childHandler(new ChannelInitializer<Channel>() {
-            @Override
-            protected void initChannel(Channel l_param0) {
-               Connection l_var2 = new Connection(PacketFlow.SERVERBOUND);
-               l_var2.setListener(new MemoryServerHandshakePacketListenerImpl(ServerConnectionListener.this.server, l_var2));
-               ServerConnectionListener.this.connections.add(l_var2);
-               ChannelPipeline l_var3 = l_param0.pipeline();
-               l_var3.addLast("packet_handler", l_var2);
-            }
-         }).group(SERVER_EVENT_GROUP.get()).localAddress(LocalAddress.ANY).bind().syncUninterruptibly();
-         this.channels.add(var1);
-      }
-
-      return var1.channel().localAddress();
+   public Connection connectLocalClient() {
+      Connection[] pair = Connection.createLocalPair();
+      pair[1].setListener(new MemoryServerHandshakePacketListenerImpl(this.server, pair[1]));
+      this.connections.add(pair[1]);
+      return pair[0];
    }
 
    public void stop() {
       this.running = false;
+      for (Connection connection : this.connections) {
+         connection.disconnect(Component.translatable("multiplayer.disconnect.server_shutdown"));
+      }
 
-      for (ChannelFuture var2 : this.channels) {
-         try {
-            var2.channel().close().sync();
-         } catch (InterruptedException var3) {
-            LOGGER.error("Interrupted whilst closing channel");
-         }
+      for (ChannelFuture channel : this.channels) {
+         channel.channel().close();
       }
    }
 

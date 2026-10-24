@@ -140,6 +140,46 @@ public class TSpliterators {
         };
     }
 
+    public static TSpliterator.OfDouble spliterator(double[] array, int additionalCharacteristics) {
+        return spliterator(array, 0, array.length, additionalCharacteristics);
+    }
+
+    public static TSpliterator.OfDouble spliterator(double[] array, int fromIndex, int toIndex,
+            int additionalCharacteristics) {
+        java.util.Objects.requireNonNull(array);
+        if (fromIndex < 0 || toIndex > array.length || fromIndex > toIndex) {
+            throw new IndexOutOfBoundsException("Invalid spliterator range");
+        }
+        return new TSpliterator.OfDouble() {
+            int index = fromIndex;
+
+            @Override
+            public TSpliterator.OfDouble trySplit() {
+                int start = index;
+                int middle = (start + toIndex) >>> 1;
+                if (start >= middle) return null;
+                index = middle;
+                return spliterator(array, start, middle, additionalCharacteristics);
+            }
+
+            @Override
+            public boolean tryAdvance(DoubleConsumer action) {
+                java.util.Objects.requireNonNull(action);
+                if (index >= toIndex) return false;
+                action.accept(array[index++]);
+                return true;
+            }
+
+            @Override
+            public long estimateSize() { return toIndex - index; }
+
+            @Override
+            public int characteristics() {
+                return additionalCharacteristics | TSpliterator.SIZED | TSpliterator.SUBSIZED;
+            }
+        };
+    }
+
     public static <T> TSpliterator<T> spliterator(Iterator<? extends T> iterator, long size, int characteristics) {
         return new TSpliterator<T>() {
             @Override

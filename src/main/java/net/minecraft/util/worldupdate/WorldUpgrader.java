@@ -217,7 +217,7 @@ public class WorldUpgrader {
             int var11 = Integer.parseInt(var10.group(1)) << 5;
             int var12 = Integer.parseInt(var10.group(2)) << 5;
 
-            try (RegionFile var13 = new RegionFile(var9.toPath(), var3.toPath(), true)) {
+            try (RegionFile var13 = new RegionFile(java.nio.file.Paths.get(var9.getPath()), java.nio.file.Paths.get(var3.getPath()), true)) {
                for (int var14 = 0; var14 < 32; var14++) {
                   for (int var15 = 0; var15 < 32; var15++) {
                      ChunkPos var16 = new ChunkPos(var14 + var11, var15 + var12);

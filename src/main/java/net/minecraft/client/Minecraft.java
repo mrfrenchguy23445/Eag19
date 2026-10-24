@@ -1092,6 +1092,7 @@ public class Minecraft extends ReentrantBlockableEventLoop<Runnable> implements 
    }
 
    private void runTick(boolean param0) {
+      if (this.singleplayerServer != null) this.singleplayerServer.tickCooperative();
       this.window.setErrorSection("Pre render");
       long var2 = Util.getNanos();
       if (this.window.shouldClose()) {
@@ -1999,34 +2000,56 @@ public class Minecraft extends ReentrantBlockableEventLoop<Runnable> implements 
    }
 
    public void doWorldLoad(String param0, LevelStorageSource.LevelStorageAccess param1, PackRepository param2, WorldStem param3, boolean param4) {
-      // Port note (wasm14): world loading is disabled in this build, which exists to reach the
-      // title screen. Upstream this method starts the integrated server on its own thread, waits
-      // for it to publish a progress listener, then dials it over netty's in-process transport.
-      // None of that can be linked here yet:
-      //
-      //   * MinecraftServer.spin builds a Thread whose body calls runServer(). Because every
-      //     executor on this port is a direct executor, that Runnable joins the whole-program
-      //     Runnable union, and the entire server graph -- ServerLevel, Raids, PoiManager,
-      //     ServerFunctionManager, the debug-command and ban-ip commands, chunk serialisation --
-      //     came with it.
-      //   * ServerConnectionListener.startMemoryChannel() binds a netty channel, which runs
-      //     DefaultChannelId.<clinit> -> MacAddressUtil -> NetUtil. NetUtil reads sysctls through
-      //     ProcessBuilder and enumerates NetworkInterface; neither type exists in the WASM-GC
-      //     classlib, and a browser cannot do either. That bind is also what dragged
-      //     io.netty.util.NetUtil into the program, and therefore what made
-      //     Connection.<clinit>'s doPrivileged union pick up NetUtil$SoMaxConnAction.
-      //   * The local connection it then opens waits on a netty DefaultPromise, which parks the
-      //     only thread in org.teavm.runtime.Fiber -- unsupported on this target.
-      //
-      // Singleplayer comes back once the port has a single-threaded main loop to host the server
-      // on; see the mainLoop(singleThreadMode) note. Until then the button reports this honestly
-      // rather than failing somewhere in the middle of a partially linked server.
       this.clearLevel();
       this.progressListener.set(null);
-      throw new UnsupportedOperationException(
-         "This build has no integrated server yet: world loading is disabled while the port gets a "
-            + "single-threaded main loop to run a server on. It reaches the title screen only."
-      );
+      Services services = Services.createOffline(this.gameDirectory);
+      services.profileCache().setExecutor(this);
+      SkullBlockEntity.setup(services, this);
+      GameProfileCache.setUsesAuthentication(false);
+      try {
+         this.singleplayerServer = new IntegratedServer(Thread.currentThread(), this, param1, param2, param3, services,
+            radius -> {
+               StoringChunkProgressListener listener = new StoringChunkProgressListener(radius);
+               listener.start();
+               this.progressListener.set(listener);
+               this.setScreen(new LevelLoadingScreen(listener));
+               return listener;
+            });
+         this.isLocalServer = true;
+         this.singleplayerServer.startCooperative();
+         Connection connection = this.singleplayerServer.getConnection().connectLocalClient();
+         connection.setListener(new ClientHandshakePacketListenerImpl(connection, this, null, null, param4, null, status -> {}));
+         this.pendingConnection = connection;
+         connection.send(new ClientIntentionPacket("local", 0, ConnectionProtocol.LOGIN));
+         connection.send(new ServerboundHelloPacket(this.getUser().getName(), java.util.Optional.of(this.getUser().getProfileId())));
+      } catch (Exception failure) {
+         LOGGER.error("Failed to start integrated server for {}", param0, failure);
+         try {
+            if (this.singleplayerServer != null) {
+               this.singleplayerServer.halt(false);
+            } else {
+               param3.close();
+               param1.close();
+            }
+         } catch (Exception cleanupFailure) {
+            failure.addSuppressed(cleanupFailure);
+         } finally {
+            this.singleplayerServer = null;
+            this.pendingConnection = null;
+            this.isLocalServer = false;
+            services.profileCache().clearExecutor();
+            SkullBlockEntity.clear();
+         }
+         this.setScreen(new net.minecraft.client.gui.screens.AlertScreen(
+            () -> this.setScreen(new TitleScreen()),
+            Component.translatable("selectWorld.unable_to_load"),
+            Component.literal("The world could not be started. Your saved worlds are still available. See the game log for details.")));
+      }
+   }
+
+   /** Render progress while the cooperative server pumps its world-generation tasks. */
+   public void renderWorldLoading() {
+      this.runTick(false);
    }
 
    public void setLevel(ClientLevel param0) {
@@ -2061,6 +2084,8 @@ public class Minecraft extends ReentrantBlockableEventLoop<Runnable> implements 
 
       IntegratedServer var3 = this.singleplayerServer;
       this.singleplayerServer = null;
+      if (var3 != null) var3.halt(false);
+      this.isLocalServer = false;
       this.gameRenderer.resetData();
       this.gameMode = null;
       this.narrator.clear();

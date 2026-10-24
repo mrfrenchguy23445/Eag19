@@ -131,13 +131,14 @@ public class TFileChannel implements SeekableByteChannel {
 
 	private void flush() throws IOException {
 		if (this.options.contains(StandardOpenOption.WRITE)) {
-			Files.write(this.path, this.contents, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+			Files.write(this.path, this.contents, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
 		}
 	}
 
 	@Override
 	public int read(ByteBuffer param0) throws IOException {
 		this.checkOpen();
+		if (!this.options.contains(StandardOpenOption.READ)) throw new NonReadableChannelException();
 		if (!param0.hasRemaining()) {
 			return 0;
 		}
@@ -162,14 +163,11 @@ public class TFileChannel implements SeekableByteChannel {
 			return 0;
 		}
 
-		if (this.position > this.contents.length) {
-			// Writing past the end pads with zeroes, as the JDK's does.
-			byte[] var1 = new byte[(int)this.position - this.contents.length];
-			this.grow((int)this.position + param0.remaining());
-			System.arraycopy(var1, 0, this.contents, this.contents.length, var1.length);
-		} else {
-			this.grow((int)this.position + param0.remaining());
-		}
+		if (!this.options.contains(StandardOpenOption.WRITE)) throw new NonWritableChannelException();
+		if (this.options.contains(StandardOpenOption.APPEND)) this.position = this.contents.length;
+		long end = this.position + param0.remaining();
+		if (end > Integer.MAX_VALUE) throw new IOException("File too large for browser storage");
+		this.grow((int)end);
 
 		int var2 = param0.remaining();
 		param0.get(this.contents, (int)this.position, var2);
@@ -181,12 +179,35 @@ public class TFileChannel implements SeekableByteChannel {
 		return var2;
 	}
 
+	/** Region files access sectors without changing the sequential channel position. */
+	public int read(ByteBuffer buffer, long offset) throws IOException {
+		if (offset < 0) throw new IllegalArgumentException("Negative position");
+		long saved = this.position;
+		try {
+			this.position = offset;
+			return this.read(buffer);
+		} finally {
+			this.position = saved;
+		}
+	}
+
+	public int write(ByteBuffer buffer, long offset) throws IOException {
+		if (offset < 0) throw new IllegalArgumentException("Negative position");
+		long saved = this.position;
+		try {
+			this.position = offset;
+			return this.write(buffer);
+		} finally {
+			this.position = saved;
+		}
+	}
+
 	private void grow(int param0) {
 		if (param0 <= this.contents.length) {
 			return;
 		}
 
-		byte[] var1 = new byte[Math.max(param0, this.contents.length << 1)];
+		byte[] var1 = new byte[param0];
 		System.arraycopy(this.contents, 0, var1, 0, this.contents.length);
 		this.contents = var1;
 	}
@@ -198,7 +219,7 @@ public class TFileChannel implements SeekableByteChannel {
 	}
 
 	@Override
-	public SeekableByteChannel position(long param0) throws IOException {
+	public TFileChannel position(long param0) throws IOException {
 		this.checkOpen();
 		if (param0 < 0) {
 			throw new IllegalArgumentException("Negative position");
@@ -239,6 +260,7 @@ public class TFileChannel implements SeekableByteChannel {
 			byte[] var1 = new byte[(int)param0];
 			System.arraycopy(this.contents, 0, var1, 0, (int)param0);
 			this.contents = var1;
+			this.position = Math.min(this.position, param0);
 			this.flush();
 		}
 

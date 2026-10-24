@@ -30,7 +30,7 @@ public class WorldUnloadEvent {
 
    private int getTimeInSecondsSinceLoad(Instant param0) {
       Duration var2 = Duration.between(param0, Instant.now());
-      return (int)var2.toSeconds();
+      return (int)var2.getSeconds();
    }
 
    public void send(TelemetryEventSender param0) {

@@ -1,12 +1,10 @@
 package net.minecraft.server.level;
 
 import com.google.common.collect.Lists;
-import com.google.common.net.InetAddresses;
 import com.mojang.authlib.GameProfile;
 import com.mojang.datafixers.util.Either;
 import com.mojang.logging.LogUtils;
 import com.mojang.serialization.Dynamic;
-import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -1321,7 +1319,8 @@ public class ServerPlayer extends Player {
    }
 
    public String getIpAddress() {
-      return this.connection.getRemoteAddress() instanceof InetSocketAddress var2 ? InetAddresses.toAddrString(var2.getAddress()) : "<unknown>";
+      java.net.SocketAddress address = this.connection.getRemoteAddress();
+      return address == null ? "<unknown>" : address.toString();
    }
 
    public void updateOptions(ServerboundClientInformationPacket param0) {

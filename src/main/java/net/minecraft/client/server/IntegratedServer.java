@@ -71,6 +71,19 @@ public class IntegratedServer extends MinecraftServer {
       return true;
    }
 
+   private long lastLoadingFrame;
+
+   @Override
+   protected void waitForTasks() {
+      long now = net.minecraft.Util.getMillis();
+      if (!this.isReady() && !this.isShutdown() && now - this.lastLoadingFrame >= 50L) {
+         this.lastLoadingFrame = now;
+         this.minecraft.renderWorldLoading();
+      }
+      // Platform sleep yields through JSPI, allowing browser events and storage I/O.
+      net.lax1dude.eaglercraft.v1_8.internal.PlatformRuntime.sleep(1);
+   }
+
    @Override
    public void tickServer(BooleanSupplier param0) {
       boolean var2 = this.paused;

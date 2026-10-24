@@ -71,6 +71,21 @@ public class Connection implements ChannelHandler {
    private float averageSentPackets;
    private int tickCount;
    private boolean handlingFault;
+   private Connection localPeer;
+   private boolean localClosed;
+   private final Queue<Packet<?>> localPackets = new java.util.ArrayDeque<>();
+
+   /** Queued delivery avoids reentrant login and gameplay handlers. */
+   public static Connection[] createLocalPair() {
+      Connection client = new Connection(PacketFlow.CLIENTBOUND);
+      Connection server = new Connection(PacketFlow.SERVERBOUND);
+      client.address = server.address = new LocalSocketAddress();
+      client.localPeer = server;
+      server.localPeer = client;
+      client.setProtocol(ConnectionProtocol.HANDSHAKING);
+      server.setProtocol(ConnectionProtocol.HANDSHAKING);
+      return new Connection[] { client, server };
+   }
 
    public Connection(PacketFlow param0) {
       this.receiving = param0;
@@ -218,6 +233,12 @@ public class Connection implements ChannelHandler {
    }
 
    private void doSendPacket(Packet<?> param0, @Nullable PacketSendListener param1) {
+      if (this.localPeer != null) {
+         this.localPeer.localPackets.add(param0);
+         this.sentPackets++;
+         if (param1 != null) param1.onSuccess();
+         return;
+      }
       ConnectionProtocol var3 = ConnectionProtocol.getProtocolForPacket(param0);
       ConnectionProtocol var4 = this.getCurrentProtocol();
       this.sentPackets++;
@@ -267,6 +288,16 @@ public class Connection implements ChannelHandler {
 
    public void tick() {
       this.flushQueue();
+      if (this.localPeer != null && !this.readOnly) {
+         Packet<?> packet;
+         while (this.isConnected() && (packet = this.localPackets.poll()) != null) {
+            this.receivedPackets++;
+            try {
+               genericsFtw(packet, this.packetListener);
+            } catch (RunningOnDifferentThreadException ignored) {
+            }
+         }
+      }
       this.processReceivedFrames();
       if (this.packetListener instanceof TickablePacketListener var1) {
          var1.tick();
@@ -324,6 +355,14 @@ public class Connection implements ChannelHandler {
    }
 
    public void disconnect(Component param0) {
+      if (this.localPeer != null && !this.localClosed) {
+         this.localClosed = true;
+         this.disconnectedReason = param0;
+         this.localPeer.localClosed = true;
+         this.localPeer.disconnectedReason = param0;
+         this.queue.clear();
+         this.localPackets.clear();
+      }
       if (this.webSocket != null && !this.webSocket.isClosed()) {
          this.webSocket.close();
          this.disconnectedReason = param0;
@@ -331,7 +370,7 @@ public class Connection implements ChannelHandler {
    }
 
    public boolean isMemoryConnection() {
-      return false;
+      return this.localPeer != null;
    }
 
    public PacketFlow getReceiving() {
@@ -353,7 +392,7 @@ public class Connection implements ChannelHandler {
    }
 
    public boolean isConnected() {
-      return this.webSocket != null && !this.webSocket.isClosed();
+      return this.localPeer != null ? !this.localClosed : this.webSocket != null && !this.webSocket.isClosed();
    }
 
    public boolean isConnecting() {
@@ -378,7 +417,7 @@ public class Connection implements ChannelHandler {
    }
 
    public void handleDisconnection() {
-      if (this.webSocket != null && this.webSocket.isClosed()) {
+      if ((this.localPeer != null && this.localClosed) || (this.webSocket != null && this.webSocket.isClosed())) {
          if (this.disconnectionHandled) {
             LOGGER.warn("handleDisconnection() called twice");
          } else {
@@ -401,7 +440,7 @@ public class Connection implements ChannelHandler {
    }
 
    private boolean canSend() {
-      return this.webSocket != null && this.webSocket.isOpen();
+      return this.localPeer != null ? !this.localClosed : this.webSocket != null && this.webSocket.isOpen();
    }
 
    private byte[] encode(Packet<?> param0, @Nullable ConnectionProtocol param1) {
@@ -560,6 +599,10 @@ public class Connection implements ChannelHandler {
       byte[] var1 = new byte[param0.readableBytes()];
       param0.readBytes(var1);
       return var1;
+   }
+
+   private static final class LocalSocketAddress extends SocketAddress {
+      @Override public String toString() { return "local"; }
    }
 
    static class PacketHolder {

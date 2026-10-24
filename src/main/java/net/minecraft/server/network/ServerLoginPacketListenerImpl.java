@@ -226,10 +226,9 @@ public class ServerLoginPacketListenerImpl implements ServerLoginPacketListener,
 
          @Nullable
          private InetAddress getAddress() {
-            SocketAddress l_var1 = ServerLoginPacketListenerImpl.this.connection.getRemoteAddress();
-            return ServerLoginPacketListenerImpl.this.server.getPreventProxyConnections() && l_var1 instanceof InetSocketAddress
-               ? ((InetSocketAddress)l_var1).getAddress()
-               : null;
+            // The browser transport does not expose a TCP peer IP. Local login
+            // bypasses this authenticator; online session checks receive no IP hint.
+            return null;
          }
       };
       var3.setUncaughtExceptionHandler(new DefaultUncaughtExceptionHandler(LOGGER));

@@ -40,6 +40,11 @@ import org.teavm.model.instructions.JumpInstruction;
 
 public class RegisterAllocator {
     private VariableCategoryProvider variableCategoryProvider;
+    private boolean reuseRegisters = true;
+
+    public void setReuseRegisters(boolean reuseRegisters) {
+        this.reuseRegisters = reuseRegisters;
+    }
 
     public RegisterAllocator(VariableCategoryProvider variableCategoryProvider) {
         this.variableCategoryProvider = variableCategoryProvider;
@@ -79,7 +84,14 @@ public class RegisterAllocator {
             newCategories[cls] = categories[i];
         }
         categories = newCategories;
-        colorer.colorize(MutableGraphNode.toGraph(interferenceGraph), colors, categories, names);
+        if (reuseRegisters) {
+            colorer.colorize(MutableGraphNode.toGraph(interferenceGraph), colors, categories, names);
+        } else {
+            // SSA congruence classes are already coalesced above. Keeping distinct
+            // remaining values avoids selecting an incompatible representative type
+            // for a reused nominal GC reference local.
+            for (int i = 0; i < colors.length; ++i) colors[i] = i;
+        }
 
         int maxColor = 0;
         for (int i = 0; i < colors.length; ++i) {

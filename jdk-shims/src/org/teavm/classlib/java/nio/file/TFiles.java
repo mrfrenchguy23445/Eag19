@@ -313,13 +313,13 @@ public final class TFiles {
 			return new TEaglerOutputStream(var6.open(false, true, true));
 		}
 
-		// createAccessor(readable, writable, false) only rewinds the position; it
-		// does not shorten the file, so a shorter write would leave the old tail
-		// behind. TRUNCATE_EXISTING -- which an empty option set implies -- means
-		// the previous content really does go away first.
-		VirtualFileAccessor var7 = var6.open(false, true, false);
+		// The VFS truncates writable, non-append accessors. WRITE without
+		// TRUNCATE_EXISTING must instead preserve the contents and rewind.
+		VirtualFileAccessor var7 = var6.open(false, true, !var4);
 		if (var4) {
 			var7.resize(0);
+		} else {
+			var7.seek(0);
 		}
 
 		return new TEaglerOutputStream(var7);

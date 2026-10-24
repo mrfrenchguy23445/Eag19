@@ -197,13 +197,13 @@ public class Commands {
       }
 
       if (param0.includeDedicated) {
-         BanIpCommands.register(this.dispatcher);
+         // Browser-local players have no TCP peer address to ban.
          BanListCommands.register(this.dispatcher);
          BanPlayerCommands.register(this.dispatcher);
          DeOpCommands.register(this.dispatcher);
          OpCommand.register(this.dispatcher);
          PardonCommand.register(this.dispatcher);
-         PardonIpCommand.register(this.dispatcher);
+         // IP unbanning is likewise unavailable without TCP peer addresses.
          PerfCommand.register(this.dispatcher);
          SaveAllCommand.register(this.dispatcher);
          SaveOffCommand.register(this.dispatcher);

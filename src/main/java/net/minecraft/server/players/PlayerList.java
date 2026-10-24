@@ -822,7 +822,7 @@ public abstract class PlayerList {
          File var5 = new File(var4, var2 + ".json");
          if (!var5.exists()) {
             File var6 = new File(var4, param0.getName().getString() + ".json");
-            Path var7 = var6.toPath();
+            Path var7 = java.nio.file.Paths.get(var6.getPath());
             if (FileUtil.isPathNormalized(var7) && FileUtil.isPathPortable(var7) && var7.startsWith(var4.getPath()) && var6.isFile()) {
                var6.renameTo(var5);
             }

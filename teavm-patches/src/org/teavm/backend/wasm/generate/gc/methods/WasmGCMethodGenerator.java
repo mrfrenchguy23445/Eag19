@@ -275,6 +275,7 @@ public class WasmGCMethodGenerator implements BaseWasmFunctionRepository {
                 && typeMapper.mapType(ValueType.object(method.getOwnerName())) instanceof WasmType.Reference;
         categoryProvider.setCompactMode(methodCompact);
         var allocator = new RegisterAllocator(categoryProvider);
+        allocator.setReuseRegisters(false);
         allocator.allocateRegisters(method.getReference(), method.getProgram(), friendlyToDebugger);
         var ast = decompiler.decompileRegular(method);
         var firstVar = method.hasModifier(ElementModifier.STATIC) ? 1 : 0;
