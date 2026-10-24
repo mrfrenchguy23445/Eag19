@@ -35,9 +35,31 @@ public class RegionFile implements AutoCloseable {
    private final FileChannel file;
    private final Path externalFileDir;
    final RegionFileVersion version;
-   private final ByteBuffer header = ByteBuffer.allocateDirect(8192);
+   private final ByteBuffer header = zeroedHeader();
    private final IntBuffer offsets;
    private final IntBuffer timestamps;
+
+   /**
+    * The region header, zeroed explicitly rather than trusting allocateDirect.
+    *
+    * <p>The JDK guarantees that every element of an allocateDirect buffer is initialized to zero.
+    * The wasm-gc classlib does not honour that: TByteBuffer.allocateDirect resolves to
+    * Heap.alloc, which hands back a block of reused WASM linear memory that is never cleared. That
+    * is invisible everywhere else in the game because every other direct buffer is written before
+    * it is read -- but this header is the exception. It is filled by a read from disk, and a
+    * brand-new region file has nothing to read: TFileChannel reports end-of-file as -1, leaving the
+    * buffer untouched. Without this, offsets then reads the previous occupant's bytes and every
+    * chunk in the region looks allocated at a sector that does not exist, so a freshly created
+    * world fails to load with "header is truncated" and "Negative position" for every chunk.
+    */
+   private static ByteBuffer zeroedHeader() {
+      ByteBuffer var0 = ByteBuffer.allocateDirect(8192);
+      for (int var1 = 0; var1 < 8192; ++var1) {
+         var0.put(var1, (byte)0);
+      }
+
+      return var0;
+   }
    @VisibleForTesting
    protected final RegionBitmap usedSectors = new RegionBitmap();
 

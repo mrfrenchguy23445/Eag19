@@ -34,3 +34,8 @@ bin
 /.ref-src
 scripts/__pycache__/
 /teavm-patches/out/
+
+target_teavm_wasm_gc/
+target/
+build/
+.gradle/
