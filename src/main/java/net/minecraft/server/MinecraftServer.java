@@ -450,6 +450,19 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
       var2.setGameType(GameType.SPECTATOR);
    }
 
+   /**
+    * Ticket radius the spawn area is prepared with, and the FULL chunk count that implies.
+    *
+    * <p>Vanilla prepares radius 11, which is 441 chunks, before a world is playable. That is
+    * affordable on a JVM because generation runs on a thread pool. Here it does not:
+    * {@code Util.backgroundExecutor()} is a direct executor because a WASM-GC module has no
+    * threads, so every one of those chunks is generated and lit on the main thread before the
+    * player can enter. Radius 6 prepares 169 chunks, still comfortably larger than the area
+    * PlayerRespawnLogic searches for a spawn position and than a 6-chunk view distance shows.
+    */
+   public static final int SPAWN_TICKET_RADIUS = 6;
+   public static final int SPAWN_CHUNK_COUNT = (2 * SPAWN_TICKET_RADIUS + 1) * (2 * SPAWN_TICKET_RADIUS + 1);
+
    private void prepareLevels(ChunkProgressListener param0) {
       ServerLevel var2 = this.overworld();
       LOGGER.info("Preparing start region for dimension {}", var2.dimension().location());
@@ -458,9 +471,9 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
       ServerChunkCache var4 = var2.getChunkSource();
       var4.getLightEngine().setTaskPerBatch(500);
       this.nextTickTime = Util.getMillis();
-      var4.addRegionTicket(TicketType.START, new ChunkPos(var3), 11, Unit.INSTANCE);
+      var4.addRegionTicket(TicketType.START, new ChunkPos(var3), SPAWN_TICKET_RADIUS, Unit.INSTANCE);
 
-      while (var4.getTickingGenerated() != 441) {
+      while (var4.getTickingGenerated() != SPAWN_CHUNK_COUNT) {
          this.nextTickTime = Util.getMillis() + 10L;
          this.waitUntilNextTick();
       }

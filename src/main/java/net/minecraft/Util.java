@@ -817,6 +817,27 @@ public class Util {
       }
    }
 
+   /**
+    * Fisher-Yates over an arbitrary {@link List}.
+    *
+    * <p>This exists because {@code java.util.Collections.shuffle()} is unusable on WASM-GC: it
+    * bottoms out in {@code java.util.random.RandomGenerator.nextInt(int)}, whose interface
+    * dispatch has no vtable entry in this build and therefore compiles to an {@code unreachable}
+    * trap. Reaching one kills the client outright, so every shuffle site has to go through
+    * Minecraft's self-contained {@link RandomSource} instead.
+    *
+    * <p>Kept separate from {@link #shuffle(ObjectArrayList, RandomSource)}, which needs index
+    * random access for its swap trick.
+    */
+   public static <T> void shuffleList(List<T> param0, RandomSource param1) {
+      for (int var2 = param0.size() - 1; var2 > 0; var2--) {
+         int var3 = param1.nextInt(var2 + 1);
+         T var4 = param0.get(var2);
+         param0.set(var2, param0.get(var3));
+         param0.set(var3, var4);
+      }
+   }
+
    public static <T> CompletableFuture<T> blockUntilDone(Function<Executor, CompletableFuture<T>> param0) {
       return blockUntilDone(param0, CompletableFuture::isDone);
    }

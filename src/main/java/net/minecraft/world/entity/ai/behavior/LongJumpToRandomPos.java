@@ -2,18 +2,19 @@ package net.minecraft.world.entity.ai.behavior;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import net.minecraft.util.RandomSource;
 import net.minecraft.util.random.WeightedEntry;
 import net.minecraft.util.random.WeightedRandom;
 import net.minecraft.util.valueproviders.UniformInt;
@@ -180,7 +181,7 @@ public class LongJumpToRandomPos<E extends Mob> extends Behavior<E> {
    @Nullable
    protected Vec3 calculateOptimalJumpVector(Mob param0, Vec3 param1) {
       List<Integer> var3 = Lists.newArrayList(ALLOWED_ANGLES);
-      Collections.shuffle(var3);
+      Util.shuffleList(var3, RandomSource.create());
 
       for (int var5 : var3) {
          Vec3 var6 = this.calculateJumpVectorForAngle(param0, param1, var5);

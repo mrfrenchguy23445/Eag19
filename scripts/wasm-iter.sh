@@ -20,21 +20,7 @@ mkdir -p "$LOGDIR"
 # generateWasmGC only transpiles the Java to classes.wasm; the JS runtime
 # (javascript/eagruntime.js) is closure-compiled by a SEPARATE task,
 # compileMainWasmRuntime, which generateWasmGC does NOT depend on. Without it a
-# change under src/wasm-gc-teavm/js/ never reaches the served bundle, and a new
-# wasm import (e.g. platformOpenGL.glVertexAttribIPointer) fails at
-# WebAssembly.instantiate with "function import requires a callable". Run both.
-echo "############ 1/4 BUILD ############"
-if ! JAVA_HOME="$HOME/.local/jdk17" ./gradlew \
-		:target_teavm_wasm_gc:generateWasmGC \
-		:target_teavm_wasm_gc:compileMainWasmRuntime \
-		--console=plain > "$BUILD_LOG" 2>&1; then
-	echo "BUILD FAILED - last 40 lines:"
-	tail -40 "$BUILD_LOG"
-	exit 1
-fi
-grep -E "BUILD (SUCCESSFUL|FAILED)" "$BUILD_LOG" | tail -1
-
-echo
+# change under src/wasm-gc-teavm/js/ never reaches
 echo "############ 2/4 STUB ############"
 "$DIR/scripts/rebuild-stubs.sh" auto
 

@@ -1,11 +1,11 @@
 package net.minecraft.world.level.levelgen.feature.treedecorators;
 
 import com.mojang.serialization.Codec;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -51,7 +51,10 @@ public class BeehiveDecorator extends TreeDecorator {
             .flatMap(l_param0 -> Stream.of(SPAWN_DIRECTIONS).map(l_param0::relative))
             .collect(Collectors.toList());
          if (!var6.isEmpty()) {
-            Collections.shuffle(var6);
+            // Collections.shuffle() traps on WASM-GC (see Util.shuffleList). BeehiveDecorator is
+            // the one that killed world generation: it runs inside applyBiomeDecoration's
+            // feature-placement try/catch, so a trap here takes down whole chunks.
+            Util.shuffleList(var6, RandomSource.create());
             Optional<BlockPos> var7 = var6.stream().filter(l_param1 -> param0.isAir(l_param1) && param0.isAir(l_param1.relative(WORLDGEN_FACING))).findFirst();
             if (!var7.isEmpty()) {
                param0.setBlock(var7.get(), Blocks.BEE_NEST.defaultBlockState().setValue(BeehiveBlock.FACING, WORLDGEN_FACING));

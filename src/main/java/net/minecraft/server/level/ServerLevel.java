@@ -1218,8 +1218,8 @@ public class ServerLevel extends Level implements WorldGenLevel {
    public void setDefaultSpawnPos(BlockPos param0, float param1) {
       ChunkPos var3 = new ChunkPos(new BlockPos(this.levelData.getXSpawn(), 0, this.levelData.getZSpawn()));
       this.levelData.setSpawn(param0, param1);
-      this.getChunkSource().removeRegionTicket(TicketType.START, var3, 11, Unit.INSTANCE);
-      this.getChunkSource().addRegionTicket(TicketType.START, new ChunkPos(param0), 11, Unit.INSTANCE);
+      this.getChunkSource().removeRegionTicket(TicketType.START, var3, MinecraftServer.SPAWN_TICKET_RADIUS, Unit.INSTANCE);
+      this.getChunkSource().addRegionTicket(TicketType.START, new ChunkPos(param0), MinecraftServer.SPAWN_TICKET_RADIUS, Unit.INSTANCE);
       this.getServer().getPlayerList().broadcastAll(new ClientboundSetDefaultSpawnPositionPacket(param0, param1));
    }
 

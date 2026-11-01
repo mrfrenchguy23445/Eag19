@@ -58,10 +58,23 @@ public class TFileChannel implements SeekableByteChannel {
 
 	private final Path path;
 	private final Set<StandardOpenOption> options;
+	/** Backing storage. Its length is the capacity, not the file size -- see {@link #length}. */
 	private byte[] contents;
+	/**
+	 * The logical file size, which is not {@code contents.length}.
+	 *
+	 * <p>{@link #grow(int)} over-allocates so that appending stays amortised O(1); reporting
+	 * the capacity as the size would make a region file look far longer than it is and the
+	 * region header's sector bounds checks would accept sectors that hold nothing.
+	 */
+	private int length;
 	private long position;
 	private boolean open = true;
 	private TFileLock lock;
+	/** Contents in memory differ from the file on disk. */
+	private boolean dirty;
+	/** The file already existed when this channel was opened, or has been written since. */
+	private boolean onDisk;
 
 	private TFileChannel(Path param0, Set<StandardOpenOption> param1) {
 		this.path = param0;
@@ -118,6 +131,8 @@ public class TFileChannel implements SeekableByteChannel {
 			}
 
 			this.contents = var1;
+			this.length = var1.length;
+			this.onDisk = true;
 			return;
 		}
 
@@ -127,12 +142,29 @@ public class TFileChannel implements SeekableByteChannel {
 		}
 
 		this.contents = new byte[0];
+		this.length = 0;
+		this.onDisk = false;
 	}
 
+	/**
+	 * Writes the whole file back, but only when there is something to write.
+	 *
+	 * <p>This is the expensive operation -- it hands the entire array to the virtual
+	 * filesystem, which for the browser storage backend is a full array put. {@link #write}
+	 * no longer calls it for every write; see the note there.
+	 */
 	private void flush() throws IOException {
-		if (this.options.contains(StandardOpenOption.WRITE)) {
-			Files.write(this.path, this.contents, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
+		if (!this.dirty) {
+			return;
 		}
+
+		if (this.options.contains(StandardOpenOption.WRITE)) {
+			byte[] var0 = this.length == this.contents.length ? this.contents : java.util.Arrays.copyOf(this.contents, this.length);
+			Files.write(this.path, var0, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
+			this.onDisk = true;
+		}
+
+		this.dirty = false;
 	}
 
 	@Override
@@ -143,11 +175,11 @@ public class TFileChannel implements SeekableByteChannel {
 			return 0;
 		}
 
-		if (this.position >= this.contents.length) {
+		if (this.position >= this.length) {
 			return -1;
 		}
 
-		int var1 = (int)Math.min(param0.remaining(), this.contents.length - this.position);
+		int var1 = (int)Math.min(param0.remaining(), this.length - this.position);
 		for (int var2 = 0; var2 < var1; ++var2) {
 			param0.put(this.contents[(int)this.position + var2]);
 		}
@@ -164,7 +196,7 @@ public class TFileChannel implements SeekableByteChannel {
 		}
 
 		if (!this.options.contains(StandardOpenOption.WRITE)) throw new NonWritableChannelException();
-		if (this.options.contains(StandardOpenOption.APPEND)) this.position = this.contents.length;
+		if (this.options.contains(StandardOpenOption.APPEND)) this.position = this.length;
 		long end = this.position + param0.remaining();
 		if (end > Integer.MAX_VALUE) throw new IOException("File too large for browser storage");
 		this.grow((int)end);
@@ -172,10 +204,22 @@ public class TFileChannel implements SeekableByteChannel {
 		int var2 = param0.remaining();
 		param0.get(this.contents, (int)this.position, var2);
 		this.position += var2;
-		// Written through immediately. There is no page cache to defer to and no other
-		// reader of this instance, and DirectoryLock's next isLocked() call has to see
-		// the file this write created.
-		this.flush();
+		if (end > this.length) {
+			this.length = (int)end;
+		}
+
+		this.dirty = true;
+		// A write that CREATES the file still goes through immediately, because
+		// DirectoryLock.isLocked() answers by opening session.lock and taking the
+		// NoSuchFileException branch; a deferred create would make every world look
+		// unlocked. Everything after that stays in memory and goes out on flush()/
+		// close(), which is what the JDK's page cache does. Writing the whole file per
+		// write made saving chunk N cost two full copies of a region file that grows to
+		// tens of megabytes -- quadratic in the number of chunks saved.
+		if (!this.onDisk) {
+			this.flush();
+		}
+
 		return var2;
 	}
 
@@ -202,13 +246,20 @@ public class TFileChannel implements SeekableByteChannel {
 		}
 	}
 
+	/**
+	 * Grows the buffer geometrically so a sequence of appends is amortised O(1) per byte.
+	 *
+	 * <p>Allocating exactly {@code param0} reallocated and copied the entire file on every
+	 * growth, so appending chunk payloads to a region file copied the whole thing once per
+	 * 4 KiB sector allocated. Only {@link #length} is the file size; the slack is capacity.
+	 */
 	private void grow(int param0) {
 		if (param0 <= this.contents.length) {
 			return;
 		}
 
-		byte[] var1 = new byte[param0];
-		System.arraycopy(this.contents, 0, var1, 0, this.contents.length);
+		byte[] var1 = new byte[Math.max(param0, this.contents.length + (this.contents.length >> 1) + 8192)];
+		System.arraycopy(this.contents, 0, var1, 0, this.length);
 		this.contents = var1;
 	}
 
@@ -232,7 +283,7 @@ public class TFileChannel implements SeekableByteChannel {
 	@Override
 	public long size() throws IOException {
 		this.checkOpen();
-		return this.contents.length;
+		return this.length;
 	}
 
 	/**
@@ -256,11 +307,10 @@ public class TFileChannel implements SeekableByteChannel {
 			throw new IllegalArgumentException("Negative size");
 		}
 
-		if (param0 < this.contents.length) {
-			byte[] var1 = new byte[(int)param0];
-			System.arraycopy(this.contents, 0, var1, 0, (int)param0);
-			this.contents = var1;
+		if (param0 < this.length) {
+			this.length = (int)param0;
 			this.position = Math.min(this.position, param0);
+			this.dirty = true;
 			this.flush();
 		}
 

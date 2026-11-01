@@ -7,7 +7,6 @@ import com.mojang.datafixers.util.Either;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -22,6 +21,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.server.level.progress.ChunkProgressListener;
+import net.minecraft.util.RandomSource;
 import net.minecraft.util.VisibleForDebug;
 import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.util.thread.BlockableEventLoop;
@@ -366,7 +366,9 @@ public class ServerChunkCache extends ChunkSource {
 
          var7.popPush("spawnAndTick");
          boolean var13 = this.level.getGameRules().getBoolean(GameRules.RULE_DOMOBSPAWNING);
-         Collections.shuffle(var12);
+         // Collections.shuffle() traps on WASM-GC; this runs every tick on the chunk main
+         // thread, so it would take the whole chunk source down. See Util.shuffleList.
+         Util.shuffleList(var12, RandomSource.create());
 
          for (ServerChunkCache.ChunkAndHolder var15 : var12) {
             LevelChunk var16 = var15.chunk;

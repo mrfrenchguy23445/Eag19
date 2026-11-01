@@ -48,12 +48,6 @@ public class KeyboardHandler {
    public static final int DEBUG_CRASH_TIME = 10000;
    private final Minecraft minecraft;
    private final ClipboardManager clipboardManager = new ClipboardManager();
-
-   /**
-    * The window handle passed to {@link #setup(long)}. Eaglercraft has one implicit surface, so this
-    * is {@code Window}'s synthetic handle; it is threaded into keyPress/charTyped so their existing
-    * {@code window == this.minecraft.getWindow().getWindow()} guards keep working unchanged.
-    */
    private long window;
 
    private long debugCrashKeyTime = -1L;

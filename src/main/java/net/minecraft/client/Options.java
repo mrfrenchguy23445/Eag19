@@ -1039,7 +1039,7 @@ public class Options {
          OptionInstance.noTooltip(),
          (l_param0, l_param1) -> genericValueLabel(l_param0, Component.translatable("options.chunks", l_param1)),
          new OptionInstance.IntRange(2, var4 ? 32 : 16),
-         var3 ? 12 : 8,
+         var3 ? 8 : 6,
          l_param0 -> Minecraft.getInstance().levelRenderer.needsUpdate()
       );
       this.simulationDistance = new OptionInstance<>(
@@ -1047,7 +1047,7 @@ public class Options {
          OptionInstance.noTooltip(),
          (l_param0, l_param1) -> genericValueLabel(l_param0, Component.translatable("options.chunks", l_param1)),
          new OptionInstance.IntRange(5, var4 ? 32 : 16),
-         var3 ? 12 : 8,
+         var3 ? 6 : 5,
          l_param0 -> {}
       );
       this.syncWrites = Util.getPlatform() == Util.OS.WINDOWS;
