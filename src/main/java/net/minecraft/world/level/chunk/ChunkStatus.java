@@ -375,12 +375,24 @@ public class ChunkStatus {
    ) {
       ChunkAccess var9 = param6.get(param6.size() / 2);
       ProfiledDuration var10 = JvmProfiler.INSTANCE.onChunkGenerate(var9.getPos(), param1.dimension(), this.name);
-      CompletableFuture<Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure>> var11 = this.generationTask
+      long var11 = System.nanoTime();
+      String var12 = this.name;
+      CompletableFuture<Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure>> var13 = this.generationTask
          .doWork(this, param0, param1, param2, param3, param4, param5, param6, var9, param7);
-      return var10 != null ? var11.thenApply(l_param1 -> {
-         var10.finish();
+      if (var10 != null) {
+         var13 = var13.thenApply(l_param1 -> {
+            var10.finish();
+            return l_param1;
+         });
+      }
+      // Wasm-gc build: single cooperative thread, so future-completion time
+      // ≈ real work time. Accumulate per-stage totals so "Preparing spawn
+      // area" slowness can be attributed to a stage (FEATURES, LIGHT, FULL,
+      // ...) instead of guessed at. See ChunkGenProfiler.
+      return var13.thenApply(l_param1 -> {
+         ChunkGenProfiler.record(var12, System.nanoTime() - var11);
          return l_param1;
-      }) : var11;
+      });
    }
 
    public CompletableFuture<Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure>> load(
