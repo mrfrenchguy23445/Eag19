@@ -757,6 +757,32 @@ public class ChunkMap extends ChunkStorage implements ChunkHolder.PlayerProvider
       return this.tickingGenerated.get();
    }
 
+   /** Cooperative-port diagnostics: one-line summary of the task sorter queues. */
+   public String describeQueueSorter() {
+      return this.queueSorter.describeQueues();
+   }
+
+   /** Cooperative-port diagnostics: describe every holder that never reached FULL. */
+   public String describeStuckChunks() {
+      StringBuilder sb = new StringBuilder();
+      int stuckCount = 0;
+      for (ChunkHolder l_var0 : this.visibleChunkMap.values()) {
+         ChunkStatus last = l_var0.getLastAvailableStatus();
+         // Only "stuck" if it is behind the status its own ticket level asks for. The ring of
+         // chunks outside the spawn ticket tops out at FEATURES by design (ChunkHolder.getStatus
+         // of level 34+), so reporting every non-FULL chunk there as stuck was a false alarm.
+         ChunkStatus target = ChunkHolder.getStatus(l_var0.getTicketLevel());
+         if (last == null || !last.isOrAfter(target)) {
+            if (stuckCount++ > 40) { sb.append(" ..."); break; }
+            sb.append(l_var0.getPos().x).append(',').append(l_var0.getPos().z);
+            sb.append(": lvl=").append(l_var0.getTicketLevel());
+            sb.append(" last=").append(last == null ? "none" : last.getName());
+            sb.append("; ");
+         }
+      }
+      return stuckCount == 0 ? "stuck=0" : ("stuck=" + stuckCount + " [" + sb + "]");
+   }
+
    private boolean saveChunkIfNeeded(ChunkHolder param0) {
       if (!param0.wasAccessibleSinceLastSave()) {
          return false;

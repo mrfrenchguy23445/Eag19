@@ -22,47 +22,26 @@ import org.slf4j.Logger;
 
 public class SynchedEntityData {
    private static final Logger LOGGER = LogUtils.getLogger();
-   // TeaVM's wasm-gc backend gives java.lang.Class no usable hashCode()/equals(), so a
-   // pool keyed on Class objects misses every lookup and every entity class restarts its
-   // accessor range at id 0, colliding with Entity's own id 0. Class.getName() hashes
-   // correctly here, so the pool is keyed on the class name instead. The id assignment
-   // algorithm below is unchanged from vanilla, so the ids still match the server's.
-   private static final java.util.ArrayList<String> ENTITY_ID_POOL_KEYS = new java.util.ArrayList<String>();
-   private static final java.util.ArrayList<Integer> ENTITY_ID_POOL_VALS = new java.util.ArrayList<Integer>();
-
-   private static Integer getPool(String key) {
-      for (int i = 0; i < ENTITY_ID_POOL_KEYS.size(); i++) {
-         if (ENTITY_ID_POOL_KEYS.get(i).equals(key)) {
-            return ENTITY_ID_POOL_VALS.get(i);
-         }
-      }
-      return null;
-   }
-
-   private static boolean hasPool(String key) {
-      for (int i = 0; i < ENTITY_ID_POOL_KEYS.size(); i++) {
-         if (ENTITY_ID_POOL_KEYS.get(i).equals(key)) {
-            return true;
-         }
-      }
-      return false;
-   }
-
-   private static void putPool(String key, int val) {
-      for (int i = 0; i < ENTITY_ID_POOL_KEYS.size(); i++) {
-         if (ENTITY_ID_POOL_KEYS.get(i).equals(key)) {
-            ENTITY_ID_POOL_VALS.set(i, val);
-            return;
-         }
-      }
-      ENTITY_ID_POOL_KEYS.add(key);
-      ENTITY_ID_POOL_VALS.add(val);
-   }
+   // Accessor ids are handed out by define(), NOT at <clinit> time.
+   //
+   // This build forces ClassInitializerInfo.EMPTY (teavm-patches/.../TeaVM.java, "static init
+   // order"), so classes initialise lazily and a subclass <clinit> can run BEFORE its
+   // superclasses'. Any base id derived there is therefore wrong, and Class.forName does not
+   // force initialisation here either (tried and measured). The old name-keyed pool produced
+   // exactly that: Mob's initialiser ran before Entity's, took id 0, and every mob instance
+   // then threw "Duplicate id value for 0! (entity=...Pig/Llama)" against Entity's
+   // DATA_SHARED_FLAGS_ID; ServerPlayer failed the same way while being placed.
+   //
+   // define() runs inside the constructors, where the chain order is guaranteed
+   // (Entity -> LivingEntity -> Mob -> ...), so a per-instance counter reproduces vanilla's
+   // assignment exactly: Entity 0..7, LivingEntity 8..14, Mob 15, subclasses after their
+   // parent's range. Re-running on a later instance yields the same ids.
    private static final int MAX_ID_VALUE = 254;
    private final Entity entity;
    private final Int2ObjectMap<SynchedEntityData.DataItem<?>> itemsById = new Int2ObjectOpenHashMap<>();
    private final Lock lock = new Lock();
    private boolean isDirty;
+   private int nextFreeId;
 
    public SynchedEntityData(Entity param0) {
       this.entity = param0;
@@ -71,67 +50,36 @@ public class SynchedEntityData {
    public static <T> EntityDataAccessor<T> defineId(Class<? extends Entity> param0, EntityDataSerializer<T> param1) {
       if (LOGGER.isDebugEnabled()) {
          try {
-            Class<?> var2 = Class.forName(Thread.currentThread().getStackTrace()[2].getClassName());
-            if (!var2.equals(param0)) {
-               LOGGER.debug("defineId called for: {} from {}", param0, var2, new RuntimeException());
+            Class<?> var0 = Class.forName(Thread.currentThread().getStackTrace()[2].getClassName());
+            if (!var0.equals(param0)) {
+               LOGGER.debug("defineId called for: {} from {}", param0, var0, new RuntimeException());
             }
-         } catch (ClassNotFoundException var5) {
+         } catch (ClassNotFoundException var8) {
          }
       }
 
-      String poolKey = param0.getName();
-      if (poolKey == null) {
-         poolKey = param0.toString();
-      }
-      System.out.println("[syncherDBG] defineId class=" + param0.getName() + " key=" + poolKey + " poolHasKey=" + hasPool(poolKey));
-      Integer poolMax = getPool(poolKey);
-      int var2;
-      if (poolMax != null) {
-         var2 = poolMax + 1;
-         System.out.println("[syncherDBG] reuse existing key -> start=" + var2);
-      } else {
-         int var3 = 0;
-         Class<?> var4 = param0;
-         System.out.println("[syncherDBG] walking up from " + var4.getName());
-         while (var4 != null && var4 != Entity.class) {
-            var4 = var4.getSuperclass();
-            if (var4 != null) {
-               String pk = var4.getName();
-               if (pk == null) pk = var4.toString();
-               System.out.println("[syncherDBG]   check " + pk + " has=" + hasPool(pk));
-               Integer var5 = getPool(pk);
-               if (var5 != null) {
-                  var3 = var5 + 1;
-                  System.out.println("[syncherDBG]   found at " + pk + " -> " + var3);
-                  break;
-               }
-            }
-         }
-
-         var2 = var3;
-      }
-
-      try {
-         System.out.println("[syncher] " + poolKey + " id=" + var2);
-      } catch (Throwable var7) {
-      }
-
-      if (var2 > 254) {
-         throw new IllegalArgumentException("Data value id is too big with " + var2 + "! (Max is 254)");
-      }
-
-      putPool(poolKey, var2);
-      return param1.createAccessor(var2);
+      // No id is allocated here; the accessor keeps a placeholder until define() assigns one.
+      return param1.createAccessor(-1);
    }
 
    public <T> void define(EntityDataAccessor<T> param0, T param1) {
+      if (!param0.isAssigned()) {
+         param0.assignId(this.nextFreeId);
+      }
+
+      if (param0.getId() >= this.nextFreeId) {
+         this.nextFreeId = param0.getId() + 1;
+      }
+
       int var3 = param0.getId();
       if (var3 > 254) {
          throw new IllegalArgumentException("Data value id is too big with " + var3 + "! (Max is 254)");
       }
 
       if (this.itemsById.containsKey(var3)) {
-         throw new IllegalArgumentException("Duplicate id value for " + var3 + "!");
+         throw new IllegalArgumentException(
+            "Duplicate id value for " + var3 + "! (entity=" + this.entity.getClass().getName() + ")"
+         );
       }
 
       if (EntityDataSerializers.getSerializedId(param0.getSerializer()) < 0) {

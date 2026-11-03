@@ -104,6 +104,27 @@ public class ChunkTaskPriorityQueue<T> {
       return this.firstQueue < PRIORITY_LEVEL_COUNT;
    }
 
+   /** Cooperative-port diagnostics: total pending messages across every priority bucket. */
+   public int totalQueuedTasks() {
+      int var2 = 0;
+      for (Long2ObjectLinkedOpenHashMap<List<Optional<T>>> var3 : this.taskQueue) {
+         for (List<Optional<T>> var5 : (Iterable<List<Optional<T>>>)var3.values()) {
+            var2 += var5.size();
+         }
+      }
+      return var2;
+   }
+
+   /** Cooperative-port diagnostics: the current head priority bucket index. */
+   public int firstQueueLevel() {
+      return this.firstQueue;
+   }
+
+   /** Cooperative-port diagnostics: how many positions are currently acquired. */
+   public int acquiredCount() {
+      return this.acquired.size();
+   }
+
    @Override
    public String toString() {
       return this.name + " " + this.firstQueue + "...";

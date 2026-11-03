@@ -310,7 +310,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
       boolean var1 = false;
       ProfiledDuration var2 = JvmProfiler.INSTANCE.onWorldLoadedStarted();
       this.worldData.setModdedInfo(this.getServerModName(), this.getModdedStatus().shouldReportAsModified());
-      ChunkProgressListener var3 = this.progressListenerFactory.create(11);
+      ChunkProgressListener var3 = this.progressListenerFactory.create(MinecraftServer.SPAWN_TICKET_RADIUS);
       this.createLevels(var3);
       this.forceDifficulty();
       this.prepareLevels(var3);
@@ -457,11 +457,19 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
     * affordable on a JVM because generation runs on a thread pool. Here it does not:
     * {@code Util.backgroundExecutor()} is a direct executor because a WASM-GC module has no
     * threads, so every one of those chunks is generated and lit on the main thread before the
-    * player can enter. Radius 6 prepares 169 chunks, still comfortably larger than the area
-    * PlayerRespawnLogic searches for a spawn position and than a 6-chunk view distance shows.
+    * player can enter. Radius 6 ticks an 11x11 = 121 area, still comfortably larger than the
+    * area PlayerRespawnLogic searches for a spawn position.
+    *
+    * The count must use (2(R-1)+1)^2, not (2R+1)^2. addRegionTicket puts the centre chunk at
+    * ticket level 33-R and a chunk d away at 33-R+d; prepareTickingChunk only runs while that
+    * level is <= 32, i.e. d <= R-1. So the ticking square is (2(R-1)+1)^2 and the outer ring of
+    * the ticket is FULL/BORDER only. (2R+1)^2 is unreachable - with radius 6 it made
+    * prepareLevels spin forever at 121/169 with every task queue empty. Vanilla's own 441 for
+    * radius 11 is (2*10+1)^2, the same formula.
     */
    public static final int SPAWN_TICKET_RADIUS = 6;
-   public static final int SPAWN_CHUNK_COUNT = (2 * SPAWN_TICKET_RADIUS + 1) * (2 * SPAWN_TICKET_RADIUS + 1);
+   public static final int SPAWN_TICKING_RADIUS = SPAWN_TICKET_RADIUS - 1;
+   public static final int SPAWN_CHUNK_COUNT = (2 * SPAWN_TICKING_RADIUS + 1) * (2 * SPAWN_TICKING_RADIUS + 1);
 
    private void prepareLevels(ChunkProgressListener param0) {
       ServerLevel var2 = this.overworld();
@@ -471,12 +479,35 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
       ServerChunkCache var4 = var2.getChunkSource();
       var4.getLightEngine().setTaskPerBatch(500);
       this.nextTickTime = Util.getMillis();
+      long prepStartNanos = System.nanoTime();
+      long lastHeartbeatNanos = 0L;
       var4.addRegionTicket(TicketType.START, new ChunkPos(var3), SPAWN_TICKET_RADIUS, Unit.INSTANCE);
 
-      while (var4.getTickingGenerated() != SPAWN_CHUNK_COUNT) {
+      while (var4.getTickingGenerated() < SPAWN_CHUNK_COUNT) {
          this.nextTickTime = Util.getMillis() + 10L;
+         long hbIterStart = System.nanoTime();
          this.waitUntilNextTick();
+         // [prep-hb] watchdog: heartbeat every 5s, plus stall detection if one
+         // waitUntilNextTick call ever blocks for a minute or more.
+         long hbIter = System.nanoTime() - hbIterStart;
+         long hbSince = System.nanoTime() - prepStartNanos;
+         if (hbSince - lastHeartbeatNanos > 5_000_000_000L) {
+            lastHeartbeatNanos = hbSince;
+            LOGGER.info("[prep-hb] ticking={}/{} elapsed={}s iter={}ms {} qSorter={}", var4.getTickingGenerated(),
+               SPAWN_CHUNK_COUNT, hbSince / 1_000_000_000L, hbIter / 1_000_000L,
+               var4.chunkMap.describeStuckChunks(), var4.chunkMap.describeQueueSorter());
+         }
+         if (hbIter > 60_000_000_000L) {
+            LOGGER.warn("[prep-hb] STALL: single waitUntilNextTick took {} s; ticking={}/{}",
+               hbIter / 1_000_000_000L, var4.getTickingGenerated(), SPAWN_CHUNK_COUNT);
+         }
       }
+      // Cooperative-port: log the actual spawn-prep cost so generation-speed
+      // experiments are comparable across boots.
+      long prepMs = (System.nanoTime() - prepStartNanos) / 1000000L;
+      LOGGER.info("Spawn region prep finished: {} chunks in {} ms (avg {} ms/chunk)",
+         SPAWN_CHUNK_COUNT,
+         prepMs, prepMs / SPAWN_CHUNK_COUNT);
 
       this.nextTickTime = Util.getMillis() + 10L;
       this.waitUntilNextTick();
@@ -800,20 +831,53 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
       return var1;
    }
 
+   // [pollTally] diagnostics for the post-load stall hunting: counts of how many
+   // pollTask cycles had work vs. none. Logged every 10s while generating.
+   private long lastPollTallyNanos = 0L;
+   private long pollCalls = 0L;
+   private long pollWork = 0L;
+   private long pollIdle = 0L;
+
    private boolean pollTaskInternal() {
+      this.pollCalls++;
       if (super.pollTask()) {
+         this.pollWork++;
          return true;
       }
 
+      boolean var1 = false;
       if (this.haveTime()) {
-         for (ServerLevel var2 : this.getAllLevels()) {
-            if (var2.getChunkSource().pollTask()) {
-               return true;
+         // Cooperative-port note: with the direct executor there is no real second
+         // thread, so every chunk task funnels through here. Returning after ONE
+         // task meant `runDistanceManagerUpdates()` was re-swept for every chunk
+         // generated, making the sweep the hot loop. Drain each level's pipeline
+         // (bounded, and still gated on haveTime) before reporting back, so the
+         // distance manager is scanned once per batch instead of once per task.
+         try {
+            for (ServerLevel var2 : this.getAllLevels()) {
+               ServerChunkCache var3 = var2.getChunkSource();
+               for (int var4 = 0; var4 < 256; var4++) {
+                  if (!var3.pollTask()) break;
+                  var1 = true;
+                  if (!this.haveTime()) break;
+               }
             }
+         } catch (Throwable t) {
+            LOGGER.error("[pollTally] chunk pollTask threw", t);
+            var1 = true;
          }
       }
-
-      return false;
+      if (var1) {
+         this.pollWork++;
+      } else {
+         this.pollIdle++;
+      }
+      long pollNow = System.nanoTime();
+      if (pollNow - this.lastPollTallyNanos > 10_000_000_000L) {
+         this.lastPollTallyNanos = pollNow;
+         LOGGER.info("[pollTally] calls={} work={} idle={}", this.pollCalls, this.pollWork, this.pollIdle);
+      }
+      return var1;
    }
 
    public void doRunTask(TickTask param0) {

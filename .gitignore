@@ -39,3 +39,4 @@ target_teavm_wasm_gc/
 target/
 build/
 .gradle/
+.aider*

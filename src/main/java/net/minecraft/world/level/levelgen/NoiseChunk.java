@@ -279,7 +279,11 @@ public class NoiseChunk implements DensityFunction.ContextProvider, DensityFunct
    }
 
    public void selectCellYZ(int param0, int param1) {
-      this.interpolators.forEach(l_param2 -> l_param2.selectCellYZ(param0, param1));
+      // Indexed loop instead of forEach: runs per block cell per slice, and a
+      // capturing lambda here is allocation + megamorphic dispatch overhead in wasm-gc.
+      for (int var2 = 0, var3 = this.interpolators.size(); var2 < var3; var2++) {
+         ((NoiseChunk.NoiseInterpolator)this.interpolators.get(var2)).selectCellYZ(param0, param1);
+      }
       this.fillingCell = true;
       this.cellStartBlockY = (param0 + this.cellNoiseMinY) * this.cellHeight;
       this.cellStartBlockZ = (this.firstCellZ + param1) * this.cellWidth;
@@ -295,18 +299,24 @@ public class NoiseChunk implements DensityFunction.ContextProvider, DensityFunct
 
    public void updateForY(int param0, double param1) {
       this.inCellY = param0 - this.cellStartBlockY;
-      this.interpolators.forEach(l_param2 -> l_param2.updateForY(param1));
+      for (int var2 = 0, var3 = this.interpolators.size(); var2 < var3; var2++) {
+         ((NoiseChunk.NoiseInterpolator)this.interpolators.get(var2)).updateForY(param1);
+      }
    }
 
    public void updateForX(int param0, double param1) {
       this.inCellX = param0 - this.cellStartBlockX;
-      this.interpolators.forEach(l_param2 -> l_param2.updateForX(param1));
+      for (int var2 = 0, var3 = this.interpolators.size(); var2 < var3; var2++) {
+         ((NoiseChunk.NoiseInterpolator)this.interpolators.get(var2)).updateForX(param1);
+      }
    }
 
    public void updateForZ(int param0, double param1) {
       this.inCellZ = param0 - this.cellStartBlockZ;
       this.interpolationCounter++;
-      this.interpolators.forEach(l_param2 -> l_param2.updateForZ(param1));
+      for (int var2 = 0, var3 = this.interpolators.size(); var2 < var3; var2++) {
+         ((NoiseChunk.NoiseInterpolator)this.interpolators.get(var2)).updateForZ(param1);
+      }
    }
 
    public void stopInterpolation() {
@@ -318,7 +328,9 @@ public class NoiseChunk implements DensityFunction.ContextProvider, DensityFunct
    }
 
    public void swapSlices() {
-      this.interpolators.forEach(NoiseChunk.NoiseInterpolator::swapSlices);
+      for (int var1 = 0, var2 = this.interpolators.size(); var1 < var2; var1++) {
+         ((NoiseChunk.NoiseInterpolator)this.interpolators.get(var1)).swapSlices();
+      }
    }
 
    public Aquifer aquifer() {

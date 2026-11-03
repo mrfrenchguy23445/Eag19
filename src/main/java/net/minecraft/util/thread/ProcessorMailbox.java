@@ -80,7 +80,13 @@ public class ProcessorMailbox<T> implements ProfilerMeasured, ProcessorHandle<T>
          return false;
       }
 
-      Util.wrapThreadWithTaskName(this.name, var1).run();
+      try {
+         Util.wrapThreadWithTaskName(this.name, var1).run();
+      } catch (Throwable var2) {
+         // Cooperative-port diagnostics: keep the mailbox drainable when a task throws,
+         // and surface it, instead of letting DirectExecutor swallow it at DEBUG level.
+         LOGGER.error("Mailbox {} task threw", this.name, var2);
+      }
       return true;
    }
 

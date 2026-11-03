@@ -84,7 +84,6 @@ import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.gui.screens.DeathScreen;
 import net.minecraft.client.gui.screens.GenericDirtMessageScreen;
 import net.minecraft.client.gui.screens.InBedChatScreen;
-import net.minecraft.client.gui.screens.LevelLoadingScreen;
 import net.minecraft.client.gui.screens.LoadingOverlay;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.gui.screens.OutOfMemoryScreen;
@@ -2012,7 +2011,7 @@ public class Minecraft extends ReentrantBlockableEventLoop<Runnable> implements 
                StoringChunkProgressListener listener = new StoringChunkProgressListener(radius);
                listener.start();
                this.progressListener.set(listener);
-               this.setScreen(new LevelLoadingScreen(listener));
+               this.setScreen(new net.minecraft.client.gui.screens.StartingServerScreen());
                return listener;
             });
          this.isLocalServer = true;

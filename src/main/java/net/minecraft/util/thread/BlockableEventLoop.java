@@ -141,7 +141,9 @@ public abstract class BlockableEventLoop<R extends Runnable> implements Profiler
    protected void doRunTask(R param0) {
       try {
          param0.run();
-      } catch (Exception var2) {
+      } catch (Throwable var2) {
+         // Cooperative-port: widen Exception -> Throwable so Errors from chunk
+         // generation tasks surface instead of being lost to an idle stall.
          LOGGER.error(LogUtils.FATAL_MARKER, "Error executing task on {}", this.name(), var2);
       }
    }

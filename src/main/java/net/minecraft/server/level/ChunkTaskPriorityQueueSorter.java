@@ -46,8 +46,17 @@ public class ChunkTaskPriorityQueueSorter implements ChunkHolder.LevelChangeList
 
    public static ChunkTaskPriorityQueueSorter.Message<Runnable> message(Runnable param0, long param1, IntSupplier param3) {
       return new ChunkTaskPriorityQueueSorter.Message<>(l_param1 -> () -> {
-         param0.run();
-         l_param1.tell(Unit.INSTANCE);
+         // Cooperative-port fix: if the task throws, the Unit ack was never sent back to
+         // the ask-future, so the sorter's allOf re-arm was lost and the whole task
+         // queue for that processor froze forever with messages still pending. Always
+         // send the ack, and log the failure instead of dying silently.
+         try {
+            param0.run();
+         } catch (Throwable l_var2) {
+            LOGGER.error("Chunk task at {} threw", new ChunkPos(param1), l_var2);
+         } finally {
+            l_param1.tell(Unit.INSTANCE);
+         }
       }, param1, param3);
    }
 
@@ -139,10 +148,21 @@ public class ChunkTaskPriorityQueueSorter implements ChunkHolder.LevelChangeList
          if (l_var3 == null) {
             this.sleeping.add(param1);
          } else {
-            CompletableFuture.allOf(l_var3.map(l2_param1 -> l2_param1.map(param1::ask, l3_param0 -> {
-               l3_param0.run();
-               return CompletableFuture.completedFuture(Unit.INSTANCE);
-            })).toArray(CompletableFuture[]::new)).thenAccept(l2_param2 -> this.pollTask(param0, param1));
+            // Cooperative-port fix: a failing batch used to be dropped on the floor,
+            // killing the re-arm loop and leaving queued messages unpopped forever.
+            // Handle the failure, then re-arm regardless so the queue keeps draining.
+            CompletableFuture
+               .allOf(l_var3.map(l2_param1 -> l2_param1.map(param1::ask, l3_param0 -> {
+                  l3_param0.run();
+                  return CompletableFuture.completedFuture(Unit.INSTANCE);
+               })).toArray(CompletableFuture[]::new))
+               .handle((l2_r, l2_ex) -> {
+                  if (l2_ex != null) {
+                     LOGGER.error("Chunk task batch failed", l2_ex);
+                  }
+                  this.pollTask(param0, param1);
+                  return null;
+               });
          }
       }));
    }
@@ -170,6 +190,28 @@ public class ChunkTaskPriorityQueueSorter implements ChunkHolder.LevelChangeList
             .collect(Collectors.joining(","))
          + ", s="
          + this.sleeping.size();
+   }
+
+   /** Cooperative-port diagnostics: pending counts, head levels and the sleeping set. */
+   public String describeQueues() {
+      StringBuilder var2 = new StringBuilder();
+      for (Map.Entry<ProcessorHandle<?>, ChunkTaskPriorityQueue<? extends Function<ProcessorHandle<Unit>, ?>>> var3 : this.queues.entrySet()) {
+         if (var2.length() != 0) {
+            var2.append(' ');
+         }
+
+         ChunkTaskPriorityQueue<? extends Function<ProcessorHandle<Unit>, ?>> var4 = var3.getValue();
+         var2.append(var3.getKey().name()).append(":q=").append(var4.totalQueuedTasks())
+            .append("@").append(var4.firstQueueLevel())
+            .append("/acq=").append(var4.acquiredCount());
+      }
+
+      var2.append(" sleeping=");
+      for (ProcessorHandle<?> var5 : this.sleeping) {
+         var2.append(var5.name()).append(',');
+      }
+
+      return var2.append(" sortMb=").append(this.mailbox.size()).toString();
    }
 
    @Override

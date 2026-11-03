@@ -139,7 +139,10 @@ public class Util {
          try {
             param0.run();
          } catch (Throwable var1) {
-            LOGGER.debug("{} task failed", this.name, var1);
+            // Cooperative-port diagnostics: used to log at DEBUG (invisible in the INFO
+            // console), so a chunk-stage task dying inside a mailbox was silent and its
+            // dependent CompletableFuture chain stopped forever. Log loudly at ERROR.
+            LOGGER.error("{} task failed in {}", this.name, param0.getClass().getName(), var1);
             onTaskFailure(var1);
          }
       }
