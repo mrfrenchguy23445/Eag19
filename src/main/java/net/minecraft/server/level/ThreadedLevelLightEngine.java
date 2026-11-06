@@ -2,6 +2,11 @@ package net.minecraft.server.level;
 
 import com.mojang.datafixers.util.Pair;
 import com.mojang.logging.LogUtils;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongArrayFIFOQueue;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectList;
 import it.unimi.dsi.fastutil.objects.ObjectListIterator;
@@ -31,6 +36,15 @@ public class ThreadedLevelLightEngine extends LevelLightEngine implements AutoCl
    private final ProcessorHandle<ChunkTaskPriorityQueueSorter.Message<Runnable>> sorterMailbox;
    private volatile int taskPerBatch = 5;
    private final AtomicBoolean scheduled = new AtomicBoolean();
+   // Starlight-inspired coalescing (Phase C, cooperative single-threaded port): during the
+   // FEATURES stage, every qualifying block write enqueued its own mailbox task through the
+   // sorter (Pair + double lambda + Util.name wrapper + queue submit + Unit ack round trip)
+   // just to deliver one position. The queued sections are re-swept wholesale on the next
+   // super.runUpdates call anyway, so positions for the same light section are folded into
+   // a FIFO and flushed by ONE POST_UPDATE task per burst, exactly like vanilla checkBlock
+   // semantics but without the per-write task overhead.
+   private final Long2ObjectMap<LongArrayFIFOQueue> pendingLightChecks = new Long2ObjectOpenHashMap<>();
+   private final LongSet flushingLightCheckSections = new LongOpenHashSet();
 
    public ThreadedLevelLightEngine(
       LightChunkGetter param0,
@@ -61,13 +75,35 @@ public class ThreadedLevelLightEngine extends LevelLightEngine implements AutoCl
 
    @Override
    public void checkBlock(BlockPos param0) {
-      BlockPos var2 = param0.immutable();
-      this.addTask(
-         SectionPos.blockToSectionCoord(param0.getX()),
-         SectionPos.blockToSectionCoord(param0.getZ()),
-         ThreadedLevelLightEngine.TaskType.POST_UPDATE,
-         Util.name(() -> super.checkBlock(var2), () -> "checkBlock " + var2)
-      );
+      int var2 = SectionPos.blockToSectionCoord(param0.getX());
+      int var3 = param0.getY() >> 4;
+      int var4 = SectionPos.blockToSectionCoord(param0.getZ());
+      long var5 = SectionPos.asLong(var2, var3, var4);
+      LongArrayFIFOQueue var6 = this.pendingLightChecks.get(var5);
+      if (var6 == null) {
+         var6 = new LongArrayFIFOQueue(16);
+         this.pendingLightChecks.put(var5, var6);
+      }
+
+      var6.enqueue(param0.asLong());
+      if (this.flushingLightCheckSections.add(var5)) {
+         this.addTask(
+            var2,
+            var4,
+            ThreadedLevelLightEngine.TaskType.POST_UPDATE,
+            Util.name(() -> this.flushLightChecks(var5), () -> "checkBlocks " + new ChunkPos(var2, var4))
+         );
+      }
+   }
+
+   private void flushLightChecks(long param0) {
+      this.flushingLightCheckSections.remove(param0);
+      LongArrayFIFOQueue var3 = this.pendingLightChecks.remove(param0);
+      if (var3 != null) {
+         while (!var3.isEmpty()) {
+            super.checkBlock(BlockPos.of(var3.dequeueLong()));
+         }
+      }
    }
 
    protected void updateChunkStatus(ChunkPos param0) {

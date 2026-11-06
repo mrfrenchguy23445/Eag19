@@ -42,7 +42,42 @@ dropped stream pipeline nodes (allocation counts otherwise similar). If a real w
 is wanted here later, replace with a one-pass odometer that allocates each Pair
 combo list exactly once — boot-time only, low priority.
 
-## Phase B — Lithium selection (same build)
+## Phase C — Starlight port (SCOPED, landed Nov 6 in this build)
+Full Starlight engine rewrite was out of scope for one build (its instrumentation-first
+step is still owed). What landed instead is the Starlight-style cut on the measured
+hot path (`ProtoChunk.setBlockState → lightEngine.checkBlock` during FEATURES):
+
+- **ThreadedLevelLightEngine.checkBlock coalescing.** During the FEATURES stage every
+  qualifying write (air→solid transition is the common case) enqueued its own task
+  through the sorter mailbox: Pair + two lambdas + Util.name wrapper + queue submit +
+  pop + ask-future + Unit ack — all for one BlockPos that the engine ultimately folds
+  into a section-level re-sweep on the next super.runUpdates. Now positions are
+  accumulated into a per-light-section LongArrayFIFOQueue and ONE POST_UPDATE task per
+  section burst replays them through the unchanged `super.checkBlock` path. Semantics
+  are identical (light BFS converges; ordering between sections is irrelevant); the
+  per-write mailbox traffic is gone.
+- Behavioral notes:
+  - A failing flush task loses that burst's positions, same as a vanilla task dying
+    mid-run; the sorter's "always ack" fix keeps the queue draining regardless.
+  - `flushingLightCheckSections` prevents duplicate flush tasks per section; entries
+    are removed at flush start, so an exception mid-flush cannot wedge a section.
+- Still owed if profiling later shows a large light share: LayerLightEngine
+  per-section array caches (the true Starlight data layout) — its own build.
+
+## Phase D — Sodium-inspired client meshing (CHERRY-PICKS ONLY, landed Nov 6)
+Optioned "only if profiling says chunk rebuilding is a big FPS driver"; the dedupe
+was zero-risk, so it went in with this build:
+
+1. **RebuildTask.compile**: the second full `RenderChunkRegion.getBlockState` per
+   block (4096 fetches per rebuild, after the block-entity branch) was deleted —
+   the state fetched a few lines earlier is reused for the fluid phase
+   (`renderLiquid(var17, ...)` matches vanilla's `var18` argument exactly).
+2. **BlockCollisions.isAir fast path** (Phase B #2) doubles as the entity-movement
+   side of the collision iteration cuts.
+3. Per-state render-cull precomputation and mesh-build quad fixes remain NOT ported
+   — Eaglercraft's JS renderer already replaces most of that scope; profile first.
+
+## Phase B — Lithium selection (landed Nov 6, same build as A)
 Portable logic patches only (skip all threading modules — single-threaded port):
 
 | Module | Port? | Why |
@@ -74,13 +109,12 @@ Cherry-pick: per-state render-cull precomputation, chunk mesh build quad-level
 fixes in the render-chunk builder. Only if profiling says chunk rebuilding is a
 big FPS driver after phases A–C.
 
-## Build cadence
-- Phases A+B together → ONE build ("all optimizations in one build" directive).
-  → stub pipeline (scripts/rebuild-stubs.sh auto; restore
-  /tmp/opencode/wasm-tools-1.231.0-x86_64-linux symlink if /tmp was cleaned) →
+## Build cadence (superseded Nov 6: user directive "port ALL the mods at once")
+Phases A+B+C-scoped+D-cherry-picks all land in ONE build:
+  → stub pipeline (scripts/rebuild-stubs.sh — Linux/WSL path, needs node + python3 +
+     wasm-tools; restore /tmp/opencode/wasm-tools-1.231.0-x86_64-linux if cleaned) →
   sweep must be clean → serve on 8097 (entry point: index.html — autokey.html no
   longer exists) → user boot test.
-- Phase C → its own build after A+B validate.
 - Offline bundle regeneration (makeMainWasmClientBundle) after each validated build.
 
 ## Environment notes (recurring gotchas)

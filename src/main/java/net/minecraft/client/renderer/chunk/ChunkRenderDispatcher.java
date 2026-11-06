@@ -619,8 +619,9 @@ public class ChunkRenderDispatcher {
                      }
                   }
 
-                  BlockState var18 = var10.getBlockState(var16);
-                  FluidState var19 = var18.getFluidState();
+                  // Sodium-inspired cherry-pick (Phase D): the region lookup below repeated the
+                  // identical fetch a few lines above for every one of the 4096 blocks; reuse it.
+                  FluidState var19 = var17.getFluidState();
                   if (!var19.isEmpty()) {
                      RenderType var20 = ItemBlockRenderTypes.getRenderLayer(var19);
                      BufferBuilder var21 = param3.builder(var20);
@@ -628,7 +629,7 @@ public class ChunkRenderDispatcher {
                         RenderChunk.this.beginLayer(var21);
                      }
 
-                     var14.renderLiquid(var16, var10, var21, var18, var19);
+                     var14.renderLiquid(var16, var10, var21, var17, var19);
                   }
 
                   if (var17.getRenderShape() != RenderShape.INVISIBLE) {

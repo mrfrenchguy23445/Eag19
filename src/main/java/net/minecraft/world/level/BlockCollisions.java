@@ -73,6 +73,12 @@ public class BlockCollisions extends AbstractIterator<VoxelShape> {
             if (var5 != null) {
                this.pos.set(var1, var2, var3);
                BlockState var6 = var5.getBlockState(this.pos);
+               // Lithium port (Phase B): most blocks seen per movement tick are air; bail out
+               // before the shape pipeline (isSuffocating / hasLargeCollisionShape /
+               // getCollisionShape + move + join) is even entered.
+               if (var6.isAir()) {
+                  continue;
+               }
                if ((!this.onlySuffocatingBlocks || var6.isSuffocating(var5, this.pos))
                   && (var4 != 1 || var6.hasLargeCollisionShape())
                   && (var4 != 2 || var6.is(Blocks.MOVING_PISTON))) {

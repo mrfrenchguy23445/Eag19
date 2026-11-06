@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 
 public class ClassInstanceMultiMap<T> extends AbstractCollection<T> {
    private final Map<Class<?>, List<T>> byClass = Maps.newHashMap();
+   private final Map<Class<?>, Collection<?>> classListView = Maps.newHashMap();
    private final Class<T> baseClass;
    private final List<T> allInstances = Lists.newArrayList();
 
@@ -62,7 +63,17 @@ public class ClassInstanceMultiMap<T> extends AbstractCollection<T> {
 
       List<? extends T> var2 = this.byClass
          .computeIfAbsent(param0, l_param0 -> this.allInstances.stream().filter(l_param0::isInstance).collect(Collectors.toList()));
-      return (Collection<S>)Collections.unmodifiableCollection(var2);
+      // Lithium port (Phase B): the unmodifiable wrapper was allocated on every find() call,
+      // i.e. once per section hit per type-filtered entity query (per-frame AI/collision
+      // paths). It is immutable and the backing lists are only replaced wholesale, so the
+      // wrapper is cached alongside the list instead.
+      Collection<?> var3 = this.classListView.get(param0);
+      if (var3 == null) {
+         var3 = Collections.unmodifiableCollection(var2);
+         this.classListView.put(param0, var3);
+      }
+
+      return (Collection<S>)var3;
    }
 
    @Override

@@ -8,6 +8,7 @@ import it.unimi.dsi.fastutil.longs.LongIterator;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSortedSet;
+import it.unimi.dsi.fastutil.longs.LongSortedSets;
 import java.util.Objects;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -22,7 +23,15 @@ public class EntitySectionStorage<T extends EntityAccess> {
    private final Class<T> entityClass;
    private final Long2ObjectFunction<Visibility> intialSectionVisibility;
    private final Long2ObjectMap<EntitySection<T>> sections = new Long2ObjectOpenHashMap<>();
-   private final LongSortedSet sectionIds = new LongAVLTreeSet();
+   // Lithium port (Phase B): the vanilla LongAVLTreeSet over full section keys forces a
+   // subSet view + sorted-iterator allocation per x-column on every getEntities query, and
+   // every visited key in a column costs a mask/y/z decode before it can be rejected.
+   // Sections are instead indexed per chunk column (Long2ObjectMap<chunk> -> LongSortedSet).
+   // Ordering is identical: for a fixed x the chunk-column sets still yield z-major, y-minor
+   // section order (the packed section long places z above y), so consumers see the same
+   // sequence of sections and the (z, y) order inside each column is unchanged.
+   private final Long2ObjectMap<LongSortedSet> sectionColumns = new Long2ObjectOpenHashMap<>();
+   private long sectionCount = 0L;
 
    public EntitySectionStorage(Class<T> param0, Long2ObjectFunction<Visibility> param1) {
       this.entityClass = param0;
@@ -39,18 +48,19 @@ public class EntitySectionStorage<T extends EntityAccess> {
       int var9 = SectionPos.posToSectionCoord(param0.maxZ + 2.0);
 
       for (int var10 = var4; var10 <= var7; var10++) {
-         long var11 = SectionPos.asLong(var10, 0, 0);
-         long var13 = SectionPos.asLong(var10, -1, -1);
-         LongIterator var15 = this.sectionIds.subSet(var11, var13 + 1L).iterator();
-
-         while (var15.hasNext()) {
-            long var16 = var15.nextLong();
-            int var18 = SectionPos.y(var16);
-            int var19 = SectionPos.z(var16);
-            if (var18 >= var5 && var18 <= var8 && var19 >= var6 && var19 <= var9) {
-               EntitySection<T> var20 = this.sections.get(var16);
-               if (var20 != null && !var20.isEmpty() && var20.getStatus().isAccessible() && param1.accept(var20).shouldAbort()) {
-                  return;
+         for (int var11 = var6; var11 <= var9; var11++) {
+            LongSortedSet var12 = this.sectionColumns.get(ChunkPos.asLong(var10, var11));
+            if (var12 != null) {
+               LongIterator var13 = var12.iterator();
+               while (var13.hasNext()) {
+                  long var14 = var13.nextLong();
+                  int var16 = SectionPos.y(var14);
+                  if (var16 >= var5 && var16 <= var8) {
+                     EntitySection<T> var17 = this.sections.get(var14);
+                     if (var17 != null && !var17.isEmpty() && var17.getStatus().isAccessible() && param1.accept(var17).shouldAbort()) {
+                        return;
+                     }
+                  }
                }
             }
          }
@@ -71,9 +81,12 @@ public class EntitySectionStorage<T extends EntityAccess> {
    }
 
    private LongSortedSet getChunkSections(int param0, int param1) {
-      long var3 = SectionPos.asLong(param0, 0, param1);
-      long var5 = SectionPos.asLong(param0, -1, param1);
-      return this.sectionIds.subSet(var3, var5 + 1L);
+      LongSortedSet var3 = this.sectionColumns.get(ChunkPos.asLong(param0, param1));
+      if (var3 == null) {
+         var3 = LongSortedSets.EMPTY_SET;
+      }
+
+      return var3;
    }
 
    public Stream<EntitySection<T>> getExistingSectionsInChunk(long param0) {
@@ -96,7 +109,14 @@ public class EntitySectionStorage<T extends EntityAccess> {
    private EntitySection<T> createSection(long param0) {
       long var3 = getChunkKeyFromSectionKey(param0);
       Visibility var5 = this.intialSectionVisibility.get(var3);
-      this.sectionIds.add(param0);
+      LongSortedSet var6 = this.sectionColumns.get(var3);
+      if (var6 == null) {
+         var6 = new LongAVLTreeSet();
+         this.sectionColumns.put(var3, var6);
+      }
+
+      var6.add(param0);
+      this.sectionCount++;
       return new EntitySection<>(this.entityClass, var5);
    }
 
@@ -116,11 +136,14 @@ public class EntitySectionStorage<T extends EntityAccess> {
 
    public void remove(long param0) {
       this.sections.remove(param0);
-      this.sectionIds.remove(param0);
+      LongSortedSet var3 = this.sectionColumns.get(getChunkKeyFromSectionKey(param0));
+      if (var3 != null && var3.remove(param0)) {
+         this.sectionCount--;
+      }
    }
 
    @VisibleForDebug
    public int count() {
-      return this.sectionIds.size();
+      return (int)this.sectionCount;
    }
 }
