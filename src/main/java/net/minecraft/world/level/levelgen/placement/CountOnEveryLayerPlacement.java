@@ -1,6 +1,7 @@
 package net.minecraft.world.level.levelgen.placement;
 
 import com.mojang.serialization.Codec;
+import java.util.List;
 import java.util.stream.Stream;
 import java.util.stream.Stream.Builder;
 import net.minecraft.core.BlockPos;
@@ -55,6 +56,31 @@ public class CountOnEveryLayerPlacement extends PlacementModifier {
       } while (var5);
 
       return var4.build();
+   }
+
+   @Override
+   public void appendPositions(PlacementContext param0, RandomSource param1, BlockPos param2, List<BlockPos> param3) {
+      // Cooperative-port (TeaVM wasm-gc): stream-builder cascade replaced by plain list
+      // appends; identical iteration + RNG order.
+      int var4 = 0;
+
+      boolean var5;
+      do {
+         var5 = false;
+
+         for (int var6 = 0; var6 < this.count.sample(param1); var6++) {
+            int var7 = param1.nextInt(16) + param2.getX();
+            int var8 = param1.nextInt(16) + param2.getZ();
+            int var9 = param0.getHeight(Heightmap.Types.MOTION_BLOCKING, var7, var8);
+            int var10 = findOnGroundYPosition(param0, var7, var9, var8, var4);
+            if (var10 != Integer.MAX_VALUE) {
+               param3.add(new BlockPos(var7, var10, var8));
+               var5 = true;
+            }
+         }
+
+         var4++;
+      } while (var5);
    }
 
    @Override

@@ -157,17 +157,17 @@ public class ProtoChunk extends ChunkAccess {
             this.lightEngine.checkBlock(param0);
          }
 
-         EnumSet<Heightmap.Types> var10 = this.getStatus().heightmapsAfter();
+         Heightmap.Types[] var10 = this.heightmapsAfterCached();
          EnumSet<Heightmap.Types> var11 = null;
 
-         for (Heightmap.Types var13 : var10) {
-            Heightmap var14 = this.heightmaps.get(var13);
+         for (int var12 = 0; var12 < var10.length; var12++) {
+            Heightmap var14 = this.heightmaps.get(var10[var12]);
             if (var14 == null) {
                if (var11 == null) {
                   var11 = EnumSet.noneOf(Heightmap.Types.class);
                }
 
-               var11.add(var13);
+               var11.add(var10[var12]);
             }
          }
 
@@ -175,8 +175,8 @@ public class ProtoChunk extends ChunkAccess {
             Heightmap.primeHeightmaps(this, var11);
          }
 
-         for (Heightmap.Types var13 : var10) {
-            this.heightmaps.get(var13).update(var4 & 15, var5, var6 & 15, param1);
+         for (int var12 = 0; var12 < var10.length; var12++) {
+            this.heightmaps.get(var10[var12]).update(var4 & 15, var5, var6 & 15, param1);
          }
 
          return var9;
@@ -231,6 +231,23 @@ public class ProtoChunk extends ChunkAccess {
       return this.entities;
    }
 
+   // Cooperative-port optimisation: getStatus().heightmapsAfter() used to build a
+   // fresh EnumSet on EVERY setBlockState call (i.e. every block write in both the
+   // noise and features stages). Cached per status; indexed array loops replace the
+   // EnumSet iterators below.
+   @Nullable
+   private Heightmap.Types[] heightmapsAfterCache;
+
+   private Heightmap.Types[] heightmapsAfterCached() {
+      Heightmap.Types[] var1 = this.heightmapsAfterCache;
+      if (var1 == null) {
+         var1 = this.status.heightmapsAfter().toArray(new Heightmap.Types[0]);
+         this.heightmapsAfterCache = var1;
+      }
+
+      return var1;
+   }
+
    @Override
    public ChunkStatus getStatus() {
       return this.status;
@@ -238,6 +255,7 @@ public class ProtoChunk extends ChunkAccess {
 
    public void setStatus(ChunkStatus param0) {
       this.status = param0;
+      this.heightmapsAfterCache = null;
       if (this.belowZeroRetrogen != null && param0.isOrAfter(this.belowZeroRetrogen.targetStatus())) {
          this.setBelowZeroRetrogen(null);
       }

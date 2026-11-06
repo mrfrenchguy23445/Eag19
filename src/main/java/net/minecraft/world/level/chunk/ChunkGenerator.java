@@ -285,18 +285,34 @@ public abstract class ChunkGenerator {
          SectionPos var5 = SectionPos.of(var4, param0.getMinSection());
          BlockPos var6 = var5.origin();
          Registry<Structure> var7 = param0.registryAccess().registryOrThrow(Registries.STRUCTURE);
-         Map<Integer, List<Structure>> var8 = var7.stream().collect(Collectors.groupingBy(l_param0 -> l_param0.step().ordinal()));
+         // Cooperative-port: registry-wide stream + groupingBy was rebuilt per chunk-op;
+         // cheap HashMap grouping instead.
+         Map<Integer, List<Structure>> var8 = new java.util.HashMap<>();
+         for (Structure l_struct : var7) {
+            int l_step = l_struct.step().ordinal();
+            List<Structure> l_list = var8.get(l_step);
+            if (l_list == null) {
+               l_list = new ArrayList<>();
+               var8.put(l_step, l_list);
+            }
+            l_list.add(l_struct);
+         }
          List<FeatureSorter.StepFeatureData> var9 = this.featuresPerStep.get();
          WorldgenRandom var10 = new WorldgenRandom(new XoroshiroRandomSource(RandomSupport.generateUniqueSeed()));
          long var11 = var10.setDecorationSeed(param0.getSeed(), var6.getX(), var6.getZ());
          Set<Holder<Biome>> var13 = new ObjectArraySet<>();
-         ChunkPos.rangeClosed(var5.chunk(), 1).forEach(l_param2 -> {
-            ChunkAccess l_var3 = param0.getChunk(l_param2.x, l_param2.z);
+         // Cooperative-port: ChunkPos.rangeClosed used a spliterator-backed stream per
+         // chunk-op; plain loops over the 3x3 neighbourhood, same ordering.
+         for (int l_dz = -1; l_dz <= 1; l_dz++) {
+            for (int l_dx = -1; l_dx <= 1; l_dx++) {
+               ChunkPos l_cp = new ChunkPos(var4.x + l_dx, var4.z + l_dz);
+               ChunkAccess l_var3 = param0.getChunk(l_cp.x, l_cp.z);
 
-            for (LevelChunkSection l_var7 : l_var3.getSections()) {
-               l_var7.getBiomes().getAll(var13::add);
+               for (LevelChunkSection l_var7 : l_var3.getSections()) {
+                  l_var7.getBiomes().getAll(var13::add);
+               }
             }
-         });
+         }
          var13.retainAll(this.biomeSource.possibleBiomes());
          int var14 = var9.size();
 
@@ -307,21 +323,27 @@ public abstract class ChunkGenerator {
             for (int var17 = 0; var17 < var16; var17++) {
                int var18 = 0;
                if (param2.shouldGenerateStructures()) {
-                  for (Structure var21 : var8.getOrDefault(var17, Collections.emptyList())) {
-                     var10.setFeatureSeed(var11, var18, var17);
-                     Supplier<String> var22 = () -> var7.getResourceKey(var21).map(Object::toString).orElseGet(var21::toString);
+                  // Cooperative-port: getOrDefault avoided (emptyList crafted per step per
+                  // chunk-op); Supplier captures are the same but the loop body is flat.
+                  List<Structure> l_structs = var8.get(var17);
+                  if (l_structs != null) {
+                     for (Structure var21 : l_structs) {
+                        var10.setFeatureSeed(var11, var18, var17);
+                        Supplier<String> var22 = () -> var7.getResourceKey(var21).map(Object::toString).orElseGet(var21::toString);
 
-                     try {
-                        param0.setCurrentlyGenerating(var22);
-                        param2.startsForStructure(var5, var21)
-                           .forEach(l_param5 -> l_param5.placeInChunk(param0, param2, this, var10, getWritableArea(param1), var4));
-                     } catch (Exception var23) {
-                        CrashReport var24 = CrashReport.forThrowable(var23, "Feature placement");
-                        var24.addCategory("Feature").setDetail("Description", var22::get);
-                        throw new ReportedException(var24);
+                        try {
+                           param0.setCurrentlyGenerating(var22);
+                           for (StructureStart l_start : param2.startsForStructure(var5, var21)) {
+                              l_start.placeInChunk(param0, param2, this, var10, getWritableArea(param1), var4);
+                           }
+                        } catch (Exception var23) {
+                           CrashReport var24 = CrashReport.forThrowable(var23, "Feature placement");
+                           var24.addCategory("Feature").setDetail("Description", var22::get);
+                           throw new ReportedException(var24);
+                        }
+
+                        var18++;
                      }
-
-                     var18++;
                   }
                }
 
@@ -333,7 +355,11 @@ public abstract class ChunkGenerator {
                      if (var17 < var22.size()) {
                         HolderSet<PlacedFeature> var23 = var22.get(var17);
                         FeatureSorter.StepFeatureData var24 = var9.get(var17);
-                        var23.stream().map(Holder::value).forEach(l_param2 -> var19.add(var24.indexMapping().applyAsInt(l_param2)));
+                        // Cooperative-port: indexed walk instead of stream().map().forEach.
+                        List<Holder<PlacedFeature>> l_holders = var23.unwrap().right().orElse(java.util.Collections.emptyList());
+                        for (int l_hi = 0; l_hi < l_holders.size(); l_hi++) {
+                           var19.add(var24.indexMapping().applyAsInt(l_holders.get(l_hi).value()));
+                        }
                      }
                   }
 

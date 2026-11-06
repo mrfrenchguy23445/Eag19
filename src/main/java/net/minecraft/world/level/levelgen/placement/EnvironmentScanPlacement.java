@@ -2,6 +2,7 @@ package net.minecraft.world.level.levelgen.placement;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import java.util.List;
 import java.util.stream.Stream;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -65,6 +66,38 @@ public class EnvironmentScanPlacement extends PlacementModifier {
       }
 
       return this.targetCondition.test(var5, var4) ? Stream.of(var4) : Stream.of();
+   }
+
+   @Override
+   public void appendPositions(PlacementContext param0, RandomSource param1, BlockPos param2, List<BlockPos> param3) {
+      // Cooperative-port (TeaVM wasm-gc): stream-free scan; consumes the same RNG-free
+      // path. Results copied immutably (vanilla hands out the mutable instance as the
+      // terminal stream element - safe because it stops moving on return).
+      BlockPos.MutableBlockPos var4 = param2.mutable();
+      WorldGenLevel var5 = param0.getLevel();
+      if (!this.allowedSearchCondition.test(var5, var4)) {
+         return;
+      }
+
+      for (int var6 = 0; var6 < this.maxSteps; var6++) {
+         if (this.targetCondition.test(var5, var4)) {
+            param3.add(new BlockPos(var4));
+            return;
+         }
+
+         var4.move(this.directionOfSearch);
+         if (var5.isOutsideBuildHeight(var4.getY())) {
+            return;
+         }
+
+         if (!this.allowedSearchCondition.test(var5, var4)) {
+            break;
+         }
+      }
+
+      if (this.targetCondition.test(var5, var4)) {
+         param3.add(new BlockPos(var4));
+      }
    }
 
    @Override

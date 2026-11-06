@@ -2,6 +2,7 @@ package net.minecraft.world.level.levelgen.placement;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -38,21 +39,57 @@ public record PlacedFeature(Holder<ConfiguredFeature<?, ?>> feature, List<Placem
       return this.placeWithContext(new PlacementContext(param0, param1, Optional.of(this)), param2, param3);
    }
 
+   // Cooperative-port optimisation (TeaVM wasm-gc): vanilla expands positions through a
+   // per-modifier Stream.flatMap chain - one pipeline node, capturing lambda and
+   // spliterator per placement modifier per candidate position - which is pure
+   // allocation overhead in this runtime and a large fraction of the features stage
+   // (~1489ms). Expand list-style instead. Scratch buffers are static because
+   // PlacedFeature instances are registry singletons and worldgen is single-threaded
+   // in this port; a depth counter localizes the buffers if placement ever re-enters.
+   private static final List<BlockPos> SCAN_A = new ArrayList<>();
+   private static final List<BlockPos> SCAN_B = new ArrayList<>();
+   private static int scanDepth = 0;
+
    private boolean placeWithContext(PlacementContext param0, RandomSource param1, BlockPos param2) {
-      Stream<BlockPos> var4 = Stream.of(param2);
-
-      for (PlacementModifier var6 : this.placement) {
-         var4 = var4.flatMap(l_param3 -> var6.getPositions(param0, param1, l_param3));
+      List<BlockPos> var4;
+      List<BlockPos> var5;
+      if (scanDepth == 0) {
+         var4 = SCAN_A;
+         var5 = SCAN_B;
+      } else {
+         var4 = new ArrayList<>();
+         var5 = new ArrayList<>();
       }
+      ++scanDepth;
 
-      ConfiguredFeature<?, ?> var5 = this.feature.value();
-      MutableBoolean var6 = new MutableBoolean();
-      var4.forEach(l_param4 -> {
-         if (var5.place(param0.getLevel(), param0.generator(), param1, l_param4)) {
-            var6.setTrue();
+      try {
+         var4.clear();
+         var4.add(param2);
+
+         for (int var7 = 0, var8 = this.placement.size(); var7 < var8; var7++) {
+            PlacementModifier var9 = this.placement.get(var7);
+            var5.clear();
+            for (int var10 = 0, var11 = var4.size(); var10 < var11; var10++) {
+               var9.appendPositions(param0, param1, var4.get(var10), var5);
+            }
+            List<BlockPos> var12 = var4;
+            var4 = var5;
+            var5 = var12;
          }
-      });
-      return var6.isTrue();
+
+         ConfiguredFeature<?, ?> var13 = this.feature.value();
+         boolean var14 = false;
+         for (int var15 = 0, var16 = var4.size(); var15 < var16; var15++) {
+            if (var13.place(param0.getLevel(), param0.generator(), param1, var4.get(var15))) {
+               var14 = true;
+            }
+         }
+         return var14;
+      } finally {
+         var4.clear();
+         var5.clear();
+         --scanDepth;
+      }
    }
 
    public Stream<ConfiguredFeature<?, ?>> getFeatures() {

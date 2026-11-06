@@ -176,12 +176,15 @@ public class TitleScreen extends Screen {
       );
       this.singleplayerButton.active = true;
       Component var3 = this.getMultiplayerDisabledReason();
-      boolean var4 = var3 == null;
-      Tooltip var5 = var3 != null ? Tooltip.create(var3) : null;
+      // Cooperative-port UI decision: multiplayer is permanently unavailable in this
+      // deployment - force-inactive so the button always renders dimmed (dark) and
+      // cannot be clicked, regardless of allowsMultiplayer().
       this.addRenderableWidget(Button.builder(Component.translatable("menu.multiplayer"), l_param0 -> {
          Screen l_var2 = this.minecraft.options.skipMultiplayerWarning ? new JoinMultiplayerScreen(this) : new SafetyScreen(this);
          this.minecraft.setScreen(l_var2);
-      }).bounds(this.width / 2 - 100, param0 + param1 * 1, 200, 20).tooltip(var5).build()).active = var4;
+      }).bounds(this.width / 2 - 100, param0 + param1 * 1, 200, 20).tooltip(
+         Tooltip.create(var3 != null ? var3 : Component.translatable("title.multiplayer.disabled"))
+      ).build()).active = false;
       this.addRenderableWidget(
          Button.builder(Component.literal("Credits"), l_param0 -> this.minecraft.setScreen(new CreditsScreen(this)))
             .bounds(this.width / 2 - 100, param0 + param1 * 2, 200, 20)
@@ -307,18 +310,6 @@ public class TitleScreen extends Screen {
          }
 
          super.render(param0, param1, param2, param3);
-
-         if (this.singleplayerButton != null) {
-            int alpha = Mth.clamp((int)(var6 * 176.0F), 0, 255);
-            fill(
-               param0,
-               this.singleplayerButton.getX(),
-               this.singleplayerButton.getY(),
-               this.singleplayerButton.getX() + this.singleplayerButton.getWidth(),
-               this.singleplayerButton.getY() + this.singleplayerButton.getHeight(),
-               alpha << 24
-            );
-         }
       }
    }
 

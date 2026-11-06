@@ -59,6 +59,28 @@ public abstract class Property<T extends Comparable<T>> {
 
    public abstract Collection<T> getPossibleValues();
 
+   @Nullable
+   private java.util.Map<Comparable<?>, Integer> valueIndexMap;
+
+   /** Cooperative-port (FerriteCore-style): value -> position cache backing the flat
+    * state tables in StateHolder. Equals-keyed so autoboxed values (e.g. an Integer
+    * for DISTANCE passed through hot placement paths) resolve exactly. Built once
+    * per Property at first use; Property instances are shared singletons per block
+    * definition, so the cache is tiny and stable. */
+   public int valueIndex(Comparable<?> param0) {
+      if (this.valueIndexMap == null) {
+         java.util.Map<Comparable<?>, Integer> var1 = new java.util.HashMap<>();
+         for (Comparable<?> var3 : this.getPossibleValues()) {
+            var1.put(var3, var1.size());
+         }
+
+         this.valueIndexMap = var1;
+      }
+
+      Integer var4 = this.valueIndexMap.get(param0);
+      return var4 == null ? -1 : var4;
+   }
+
    public abstract String getName(T var1);
 
    public abstract Optional<T> getValue(String var1);

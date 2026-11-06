@@ -10,10 +10,14 @@ public record MaterialRuleList(List<NoiseChunk.BlockStateFiller> materialRuleLis
    @Nullable
    @Override
    public BlockState calculate(DensityFunction.FunctionContext param0) {
-      for (NoiseChunk.BlockStateFiller var3 : this.materialRuleList) {
-         BlockState var4 = var3.calculate(param0);
-         if (var4 != null) {
-            return var4;
+      // Cooperative-port: indexed loop instead of forEach - this rule chain runs once
+      // per terrain block (see NoiseChunk.getInterpolatedState), and an iterator
+      // allocation per block is pure overhead in wasm-gc.
+      List<NoiseChunk.BlockStateFiller> var3 = this.materialRuleList;
+      for (int var4 = 0, var5 = var3.size(); var4 < var5; var4++) {
+         BlockState var6 = var3.get(var4).calculate(param0);
+         if (var6 != null) {
+            return var6;
          }
       }
 

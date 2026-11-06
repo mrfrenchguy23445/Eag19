@@ -2,6 +2,7 @@ package net.minecraft.world.level.levelgen.placement;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import java.util.List;
 import java.util.stream.Stream;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.RandomSource;
@@ -35,6 +36,12 @@ public class HeightRangePlacement extends PlacementModifier {
    @Override
    public Stream<BlockPos> getPositions(PlacementContext param0, RandomSource param1, BlockPos param2) {
       return Stream.of(param2.atY(this.height.sample(param1, param0)));
+   }
+
+   @Override
+   public void appendPositions(PlacementContext param0, RandomSource param1, BlockPos param2, List<BlockPos> param3) {
+      // Cooperative-port (TeaVM wasm-gc): stream-free; atY allocates the returned pos.
+      param3.add(param2.atY(this.height.sample(param1, param0)));
    }
 
    @Override

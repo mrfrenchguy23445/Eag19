@@ -183,13 +183,24 @@ public class TreeFeature extends Feature<TreeConfiguration> {
 
       BlockPos.MutableBlockPos var8 = new BlockPos.MutableBlockPos();
 
-      for (BlockPos var10 : Lists.newArrayList(Sets.union(param3, param4))) {
+      // Cooperative-port: Sets.union + double ArrayList copy per tree removed; the
+      // shape fill below is idempotent, so visiting param3 then param4 (with possible
+      // repeats) is value-identical and allocation-free.
+      for (BlockPos var10 : param3) {
          if (param1.isInside(var10)) {
             var6.fill(var10.getX() - param1.minX(), var10.getY() - param1.minY(), var10.getZ() - param1.minZ());
          }
       }
 
-      for (BlockPos var10 : Lists.newArrayList(param2)) {
+      for (BlockPos var10 : param4) {
+         if (param1.isInside(var10)) {
+            var6.fill(var10.getX() - param1.minX(), var10.getY() - param1.minY(), var10.getZ() - param1.minZ());
+         }
+      }
+
+      // Cooperative-port: Lists.newArrayList(param2) defensive copy removed - param2 is
+      // not mutated in this loop.
+      for (BlockPos var10 : param2) {
          if (param1.isInside(var10)) {
             var6.fill(var10.getX() - param1.minX(), var10.getY() - param1.minY(), var10.getZ() - param1.minZ());
          }

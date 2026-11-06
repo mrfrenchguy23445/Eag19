@@ -82,6 +82,10 @@ public interface Aquifer {
       private final DensityFunction erosion;
       private final DensityFunction depth;
       private boolean shouldScheduleFluidUpdate;
+      // Cooperative-port: per-block scratch memo for calculatePressure (replaces the
+      // vanilla per-block MutableDouble allocation; single-threaded runtime).
+      private boolean barrierMemoValid;
+      private double barrierMemoValue;
       private final int minGridX;
       private final int minGridY;
       private final int minGridZ;
@@ -207,9 +211,13 @@ public interface Aquifer {
             return var24;
          }
 
-         MutableDouble var25 = new MutableDouble(Double.NaN);
+         // Cooperative-port: vanilla allocated a MutableDouble per simulated block as a
+         // one-shot NaN memo for calculatePressure. Instance fields with an explicit
+         // valid flag replace it (single-threaded runtime; calculatePressure is not
+         // reentrant within a block).
+         this.barrierMemoValid = false;
          Aquifer.FluidStatus var26 = this.getAquiferStatus(var16);
-         double var27 = var21 * this.calculatePressure(param0, var25, var20, var26);
+         double var27 = var21 * this.calculatePressure(param0, var20, var26);
          if (param1 + var27 > 0.0) {
             this.shouldScheduleFluidUpdate = false;
             return null;
@@ -218,7 +226,7 @@ public interface Aquifer {
          Aquifer.FluidStatus var29 = this.getAquiferStatus(var18);
          double var30 = similarity(var11, var13);
          if (var30 > 0.0) {
-            double var32 = var21 * var30 * this.calculatePressure(param0, var25, var20, var29);
+            double var32 = var21 * var30 * this.calculatePressure(param0, var20, var29);
             if (param1 + var32 > 0.0) {
                this.shouldScheduleFluidUpdate = false;
                return null;
@@ -227,7 +235,7 @@ public interface Aquifer {
 
          double var32 = similarity(var12, var13);
          if (var32 > 0.0) {
-            double var34 = var21 * var32 * this.calculatePressure(param0, var25, var26, var29);
+            double var34 = var21 * var32 * this.calculatePressure(param0, var26, var29);
             if (param1 + var34 > 0.0) {
                this.shouldScheduleFluidUpdate = false;
                return null;
@@ -248,7 +256,7 @@ public interface Aquifer {
          return 1.0 - Math.abs(param1 - param0) / 25.0;
       }
 
-      private double calculatePressure(DensityFunction.FunctionContext param0, MutableDouble param1, Aquifer.FluidStatus param2, Aquifer.FluidStatus param3) {
+      private double calculatePressure(DensityFunction.FunctionContext param0, Aquifer.FluidStatus param2, Aquifer.FluidStatus param3) {
          int var5 = param0.blockY();
          BlockState var6 = param2.at(var5);
          BlockState var7 = param3.at(var5);
@@ -288,10 +296,11 @@ public interface Aquifer {
             double var31 = 2.0;
             double var33;
             if (!(var29 < -2.0) && !(var29 > 2.0)) {
-               double var35 = param1.getValue();
+               double var35 = this.barrierMemoValid ? this.barrierMemoValue : Double.NaN;
                if (Double.isNaN(var35)) {
                   double var37 = this.barrierNoise.compute(param0);
-                  param1.setValue(var37);
+                  this.barrierMemoValid = true;
+                  this.barrierMemoValue = var37;
                   var33 = var37;
                } else {
                   var33 = var35;

@@ -18,8 +18,6 @@ import com.mojang.blaze3d.shaders.Uniform;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.logging.LogUtils;
-import it.unimi.dsi.fastutil.ints.IntArrayList;
-import it.unimi.dsi.fastutil.ints.IntList;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
@@ -337,7 +335,7 @@ public class ShaderInstance implements Shader, AutoCloseable {
       for (int var2 = 0; var2 < this.samplerLocations.size(); var2++) {
          String var3 = this.samplerNames.get(var2);
          if (this.samplerMap.get(var3) != null) {
-            int var4 = Uniform.glGetUniformLocation(this.programId, var3);
+            int var4 = this.samplerLocations.get(var2);
             Uniform.uploadInteger(var4, var2);
             RenderSystem.activeTexture(33984 + var2);
             Object var5 = this.samplerMap.get(var3);
@@ -382,24 +380,27 @@ public class ShaderInstance implements Shader, AutoCloseable {
 
    private void updateLocations() {
       RenderSystem.assertOnRenderThread();
-      IntList var1 = new IntArrayList();
+      // Keep samplerNames and samplerLocations index-aligned: apply() reads the cached location
+      // instead of resolving the sampler name against the linked program on every draw call.
+      List<String> var1 = Lists.newArrayListWithCapacity(this.samplerNames.size());
+      List<Integer> var2 = Lists.newArrayListWithCapacity(this.samplerNames.size());
 
-      for (int var2 = 0; var2 < this.samplerNames.size(); var2++) {
-         String var3 = this.samplerNames.get(var2);
-         int var4 = Uniform.glGetUniformLocation(this.programId, var3);
-         if (var4 == -1) {
-            LOGGER.warn("Shader {} could not find sampler named {} in the specified shader program.", this.name, var3);
-            this.samplerMap.remove(var3);
-            var1.add(var2);
+      for (int var3 = 0; var3 < this.samplerNames.size(); var3++) {
+         String var4 = this.samplerNames.get(var3);
+         int var5 = Uniform.glGetUniformLocation(this.programId, var4);
+         if (var5 == -1) {
+            LOGGER.warn("Shader {} could not find sampler named {} in the specified shader program.", this.name, var4);
+            this.samplerMap.remove(var4);
          } else {
-            this.samplerLocations.add(var4);
+            var1.add(var4);
+            var2.add(var5);
          }
       }
 
-      for (int var2 = var1.size() - 1; var2 >= 0; var2--) {
-         int var3 = var1.getInt(var2);
-         this.samplerNames.remove(var3);
-      }
+      this.samplerNames.clear();
+      this.samplerNames.addAll(var1);
+      this.samplerLocations.clear();
+      this.samplerLocations.addAll(var2);
 
       for (Uniform var3 : this.uniforms) {
          String var4 = var3.getName();

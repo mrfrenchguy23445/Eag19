@@ -87,6 +87,8 @@ import org.slf4j.Logger;
 
 public class ClientLevel extends Level {
    private static final Logger LOGGER = LogUtils.getLogger();
+   // Cooperative-port: throttle counter for ambient particle tick failure logs.
+   private int ambientTickFailCount = 0;
    private static final double FLUID_PARTICLE_SPAWN_OFFSET = 0.05;
    private static final int NORMAL_LIGHT_UPDATES_PER_FRAME = 10;
    private static final int LIGHT_UPDATE_QUEUE_SIZE_THRESHOLD = 1000;
@@ -343,8 +345,22 @@ public class ClientLevel extends Level {
       BlockPos.MutableBlockPos var7 = new BlockPos.MutableBlockPos();
 
       for (int var8 = 0; var8 < 667; var8++) {
-         this.doAnimateTick(param0, param1, param2, 16, var5, var6, var7);
-         this.doAnimateTick(param0, param1, param2, 32, var5, var6, var7);
+         // Cooperative-port hardening: ambient particles are purely visual. In this port an
+         // NPE inside the spawn chain (a leftover particle provider against torn-down or
+         // still-loading chunk state) must not take the whole client down; log with
+         // position so the culprit block can be identified instead. Throttled so a
+         // deterministic per-frame failure can't spam thousands of console errors.
+         try {
+            this.doAnimateTick(param0, param1, param2, 16, var5, var6, var7);
+            this.doAnimateTick(param0, param1, param2, 32, var5, var6, var7);
+         } catch (Throwable l_var2) {
+            if (++ambientTickFailCount == 1 || ambientTickFailCount % 500 == 0) {
+               LOGGER.error(
+                  "Ambient particle tick failed near block ({}, {}, {}) [failure #{}]",
+                  var7.getX(), var7.getY(), var7.getZ(), ambientTickFailCount, l_var2
+               );
+            }
+         }
       }
    }
 

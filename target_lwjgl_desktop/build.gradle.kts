@@ -11,9 +11,21 @@ java {
 
 sourceSets {
 	named("main") {
-		java.srcDirs(
-			"../src/lwjgl/java"
-		)
+		java {
+			srcDirs(
+				"../src/lwjgl/java"
+			)
+			// This workspace's src/main branch predates webview/screen-record/update
+			// support, so the lwjgl platform implementations of those features cannot
+			// compile (their target packages do not exist here). Exclude them; the
+			// wasm-gc target has always compiled fine without them.
+			exclude("**/PlatformWebView.java")
+			exclude("**/PlatformScreenRecord.java")
+			exclude("**/PlatformUpdateSvc.java")
+			exclude("**/lwjgl/FallbackWebViewServer.java")
+			exclude("**/lwjgl/FallbackWebViewWSD.java")
+			exclude("**/lwjgl/FallbackWebViewProtocol.java")
+		}
 	}
 }
 

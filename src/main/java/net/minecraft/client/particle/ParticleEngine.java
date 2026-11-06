@@ -86,6 +86,11 @@ public class ParticleEngine implements PreparableReloadListener {
    private final Map<ResourceLocation, ParticleEngine.MutableSpriteSet> spriteSets = Maps.newHashMap();
    private final TextureAtlas textureAtlas;
    private final Object2IntOpenHashMap<ParticleGroup> trackedParticleCounts = new Object2IntOpenHashMap<>();
+   // Cooperative-port: reused survivor buffer for tickParticleList; avoids per-tick
+   // allocations while rebuilding a particle list after any removal or failure.
+   private final List<Particle> particleRebuildBuffer = Lists.newArrayList();
+   // Cooperative-port: reused survivor buffer for the trackingEmitters rebuild in tick().
+   private final List<TrackingEmitter> trackingRebuildBuffer = Lists.newArrayList();
 
    public ParticleEngine(ClientLevel param0, TextureManager param1) {
       this.textureAtlas = new TextureAtlas(TextureAtlas.LOCATION_PARTICLES);
@@ -345,16 +350,52 @@ public class ParticleEngine implements PreparableReloadListener {
          this.level.getProfiler().pop();
       });
       if (!this.trackingEmitters.isEmpty()) {
-         List<TrackingEmitter> var1 = Lists.newArrayList();
+         // Cooperative-port hardening: same uncatchable wasm trap vector as
+         // tickParticleList - removeAll() on an ArrayDeque lands in ArrayDeque.removeAt,
+         // which is where RuntimeErrors escaped before. Snapshot + tick + rebuild via
+         // clear()/add() only; never Iterator.remove() or removeAll() here.
+         TrackingEmitter[] var1 = this.trackingEmitters.toArray(new TrackingEmitter[0]);
+         List<TrackingEmitter> var2 = this.trackingRebuildBuffer;
+         if (!var2.isEmpty()) {
+            var2.clear();
+         }
+         boolean var3 = false;
 
-         for (TrackingEmitter var3 : this.trackingEmitters) {
-            var3.tick();
-            if (!var3.isAlive()) {
-               var1.add(var3);
+         for (int var4 = 0; var4 < var1.length; var4++) {
+            TrackingEmitter var5 = var1[var4];
+            try {
+               var5.tick();
+               if (var5.isAlive()) {
+                  var2.add(var5);
+               } else {
+                  var3 = true;
+               }
+            } catch (Throwable var6) {
+               var3 = true;
+               try {
+                  LOGGER.error("Tracking emitter tick failed; removing emitter", var6);
+               } catch (Throwable var7) {
+               }
             }
          }
 
-         this.trackingEmitters.removeAll(var1);
+         if (var3) {
+            try {
+               this.trackingEmitters.clear();
+               for (int var4 = 0; var4 < var2.size(); var4++) {
+                  this.trackingEmitters.add(var2.get(var4));
+               }
+            } catch (Throwable var6) {
+               try {
+                  this.trackingEmitters.clear();
+               } catch (Throwable var7) {
+               }
+            }
+         }
+
+         if (!var2.isEmpty()) {
+            var2.clear();
+         }
       }
 
       Particle var1;
@@ -367,15 +408,64 @@ public class ParticleEngine implements PreparableReloadListener {
 
    private void tickParticleList(Collection<Particle> param0) {
       if (!param0.isEmpty()) {
-         Iterator<Particle> var2 = param0.iterator();
+         // Cooperative-port hardening: never use Iterator.remove() here. A wasm null
+         // trap inside ArrayDeque.removeAt (fired while removing a dead particle) is a
+         // RuntimeError that Java catch blocks cannot intercept and it kills the whole
+         // VM. Snapshot the list instead, tick each particle, and if anything died or
+         // failed, rebuild the collection once via clear()+add() - simple code paths
+         // with no iterator removal involved.
+         Particle[] var2 = param0.toArray(new Particle[0]);
+         List<Particle> var3 = this.particleRebuildBuffer;
+         if (var3.size() > 0) {
+            var3.clear();
+         }
+         boolean var4 = false;
 
-         while (var2.hasNext()) {
-            Particle var3 = var2.next();
-            this.tickParticle(var3);
-            if (!var3.isAlive()) {
-               var3.getParticleGroup().ifPresent(l_param0 -> this.updateCount(l_param0, -1));
-               var2.remove();
+         for (int var5 = 0; var5 < var2.length; var5++) {
+            Particle var6 = var2[var5];
+            try {
+               this.tickParticle(var6);
+            } catch (Throwable var7) {
+               // tickParticle's own handler normally absorbs failures; this only fires
+               // if something escapes it. Treat the particle as removed.
+               var4 = true;
+               try {
+                  LOGGER.error("Particle tick escaped for {}", var7.toString());
+               } catch (Throwable var8) {
+               }
             }
+            try {
+               if (!var6.isAlive()) {
+                  var4 = true;
+                  var6.getParticleGroup().ifPresent(l_param0 -> this.updateCount(l_param0, -1));
+               } else {
+                  var3.add(var6);
+               }
+            } catch (Throwable var9) {
+               var4 = true;
+            }
+         }
+
+         if (var4) {
+            try {
+               param0.clear();
+               for (int var5 = 0; var5 < var3.size(); var5++) {
+                  param0.add(var3.get(var5));
+               }
+            } catch (Throwable var10) {
+               try {
+                  LOGGER.error("Particle list rebuild failed; clearing list");
+               } catch (Throwable var11) {
+               }
+               try {
+                  param0.clear();
+               } catch (Throwable var11) {
+               }
+            }
+         }
+
+         if (var3.size() > 0) {
+            var3.clear();
          }
       }
    }
@@ -388,11 +478,24 @@ public class ParticleEngine implements PreparableReloadListener {
       try {
          param0.tick();
       } catch (Throwable var2) {
-         CrashReport var3 = CrashReport.forThrowable(var2, "Ticking Particle");
-         CrashReportCategory var4 = var3.addCategory("Particle being ticked");
-         var4.setDetail("Particle", param0::toString);
-         var4.setDetail("Particle Type", param0.getRenderType()::toString);
-         throw new ReportedException(var3);
+         // Cooperative-port hardening: during level teardown a particle can tick against
+         // state that is already gone (e.g. an underwater particle left over when the
+         // integrated server halts). Vanilla treats this as fatal and writes a crash
+         // report; for the port it is disproportionately harmful, so log it and drop
+         // the particle instead of killing the client. Every call inside this handler is
+         // guarded so the handler itself can never throw.
+         try {
+            LOGGER.error("Particle tick failed; removing particle", var2);
+         } catch (Throwable var3) {
+            try {
+               LOGGER.error("Particle tick failed for {}", param0.getClass().getName());
+            } catch (Throwable var4) {
+            }
+         }
+         try {
+            param0.remove();
+         } catch (Throwable var3) {
+         }
       }
    }
 
@@ -536,6 +639,13 @@ public class ParticleEngine implements PreparableReloadListener {
       this.particlesToAdd.clear();
       this.trackingEmitters.clear();
       this.trackedParticleCounts.clear();
+   }
+
+   /** Cooperative-port: public hook so Minecraft.clearLevel can drop all particles at
+    * disconnect time; otherwise leftovers keep ticking through the shutdown window and
+    * reference a level that is being torn down underneath them. */
+   public void clear() {
+      this.clearParticles();
    }
 
    static class MutableSpriteSet implements SpriteSet {

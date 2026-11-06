@@ -192,11 +192,11 @@ public class Options {
          },
          Codec.INT.xmap(GraphicsStatus::byId, GraphicsStatus::getId)
       ),
-      GraphicsStatus.FANCY,
+      GraphicsStatus.FAST,
       l_param0 -> {}
    );
    private final OptionInstance<Boolean> ambientOcclusion = OptionInstance.createBoolean(
-      "options.ao", true, l_param0 -> Minecraft.getInstance().levelRenderer.allChanged()
+      "options.ao", false, l_param0 -> Minecraft.getInstance().levelRenderer.allChanged()
    );
    private static final Component PRIORITIZE_CHUNK_TOOLTIP_NONE = Component.translatable("options.prioritizeChunkUpdates.none.tooltip");
    private static final Component PRIORITIZE_CHUNK_TOOLTIP_PLAYER_AFFECTED = Component.translatable("options.prioritizeChunkUpdates.byPlayer.tooltip");
@@ -358,7 +358,7 @@ public class Options {
       "options.biomeBlendRadius", OptionInstance.noTooltip(), (l_param0, l_param1) -> {
          int l_var2 = l_param1 * 2 + 1;
          return genericValueLabel(l_param0, Component.translatable("options.biomeBlendRadius." + l_var2));
-      }, new OptionInstance.IntRange(0, 7), 2, l_param0 -> Minecraft.getInstance().levelRenderer.allChanged()
+      }, new OptionInstance.IntRange(0, 7), 0, l_param0 -> Minecraft.getInstance().levelRenderer.allChanged()
    );
    private final OptionInstance<Double> mouseWheelSensitivity = new OptionInstance<>(
       "options.mouseWheelSensitivity",
@@ -387,7 +387,7 @@ public class Options {
          Minecraft.getInstance().getWindow().updateVsync(l_param0);
       }
    });
-   private final OptionInstance<Boolean> entityShadows = OptionInstance.createBoolean("options.entityShadows", true);
+   private final OptionInstance<Boolean> entityShadows = OptionInstance.createBoolean("options.entityShadows", false);
    private final OptionInstance<Boolean> forceUnicodeFont = OptionInstance.createBoolean("options.forceUnicodeFont", false, l_param0 -> {
       Minecraft l_var1 = Minecraft.getInstance();
       if (l_var1.getWindow() != null) {
@@ -660,7 +660,7 @@ public class Options {
       OptionInstance.noTooltip(),
       OptionInstance.forOptionEnum(),
       new OptionInstance.Enum<>(Arrays.asList(ParticleStatus.values()), Codec.INT.xmap(ParticleStatus::byId, ParticleStatus::getId)),
-      ParticleStatus.ALL,
+      ParticleStatus.DECREASED,
       l_param0 -> {}
    );
    private final OptionInstance<NarratorStatus> narrator = new OptionInstance<>(
@@ -1039,7 +1039,10 @@ public class Options {
          OptionInstance.noTooltip(),
          (l_param0, l_param1) -> genericValueLabel(l_param0, Component.translatable("options.chunks", l_param1)),
          new OptionInstance.IntRange(2, var4 ? 32 : 16),
-         var3 ? 8 : 6,
+         // Cooperative-port perf default: TeaVM worlds cost ~2s of main-thread work per
+         // generated chunk, so vanilla's 6-8 chunk render distance folds the client in
+         // chunk-gen lag. Default to 4.
+         4,
          l_param0 -> Minecraft.getInstance().levelRenderer.needsUpdate()
       );
       this.simulationDistance = new OptionInstance<>(
@@ -1292,6 +1295,22 @@ public class Options {
             this.minecraft.getWindow().setFramerateLimit(this.framerateLimit.get());
          }
 
+         // Cooperative-port: one-time FPS auto-tune for profiles predating the performance
+         // defaults. TeaVM worlds cost ~2s of main-thread work per generated chunk, so
+         // vanilla's heavier rendering defaults (8 chunks, Fancy, AO, shadows, biome
+         // blending) fold the client under chunk-gen lag. Versioned via the
+         // "perfAutoTune" key so future tuning waves can re-apply; after this once, the
+         // user's own changes are never touched again.
+         if (!var2.contains("perfAutoTune")) {
+            this.renderDistance.set(4);
+            this.graphicsMode.set(GraphicsStatus.FAST);
+            this.ambientOcclusion.set(false);
+            this.entityShadows.set(false);
+            this.biomeBlendRadius.set(0);
+            this.particles.set(ParticleStatus.DECREASED);
+            this.save();
+         }
+
          KeyMapping.resetMapping();
       } catch (Exception var1) {
          LOGGER.error("Failed to load options", var1);
@@ -1320,6 +1339,7 @@ public class Options {
    public void save() {
       try (final PrintWriter var1 = new PrintWriter(new OutputStreamWriter(new FileOutputStream(this.optionsFile), StandardCharsets.UTF_8))) {
          var1.println("version:" + SharedConstants.getCurrentVersion().getDataVersion().getVersion());
+         var1.println("perfAutoTune:1");
          this.processOptions(new Options.FieldAccess() {
             public void writePrefix(String l_param0) {
                var1.print(l_param0);

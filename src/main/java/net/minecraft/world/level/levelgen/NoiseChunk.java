@@ -224,9 +224,12 @@ public class NoiseChunk implements DensityFunction.ContextProvider, DensityFunct
          this.inCellZ = 0;
          this.arrayInterpolationCounter++;
 
-         for (NoiseChunk.NoiseInterpolator var6 : this.interpolators) {
-            double[] var7 = (param0 ? var6.slice0 : var6.slice1)[var3];
-            var6.fillArray(var7, this.sliceFillingContextProvider);
+         // Indexed loop instead of forEach: runs per z-row per chunk; iterator churn +
+         // megamorphic dispatch is measurable in wasm-gc.
+         for (int var5 = 0, var6 = this.interpolators.size(); var5 < var6; var5++) {
+            NoiseChunk.NoiseInterpolator var7 = (NoiseChunk.NoiseInterpolator)this.interpolators.get(var5);
+            double[] var8 = (param0 ? var7.slice0 : var7.slice1)[var3];
+            var7.fillArray(var8, this.sliceFillingContextProvider);
          }
       }
 
@@ -289,8 +292,11 @@ public class NoiseChunk implements DensityFunction.ContextProvider, DensityFunct
       this.cellStartBlockZ = (this.firstCellZ + param1) * this.cellWidth;
       this.arrayInterpolationCounter++;
 
-      for (NoiseChunk.CacheAllInCell var4 : this.cellCaches) {
-         var4.noiseFiller.fillArray(var4.values, this);
+      // Indexed loop instead of forEach: ~448 calls per chunk (cellWidth 4); iterator
+      // churn + dispatch is measurable in wasm-gc.
+      for (int var4 = 0, var5 = this.cellCaches.size(); var4 < var5; var4++) {
+         NoiseChunk.CacheAllInCell var6 = this.cellCaches.get(var4);
+         var6.noiseFiller.fillArray(var6.values, this);
       }
 
       this.arrayInterpolationCounter++;

@@ -62,9 +62,17 @@ public class ChunkRenderDispatcher {
    private static final int MAX_WORKERS_32_BIT = 4;
    private static final VertexFormat VERTEX_FORMAT = DefaultVertexFormat.BLOCK;
    private static final int MAX_HIGH_PRIORITY_QUOTA = 2;
+   // With no worker threads under WASM-GC the executor runs every task inline, so an unbounded
+   // drain builds every dirty chunk in a single frame. Both stages below are capped per frame
+   // and simply resume on the next one; a chunk arriving a frame late is invisible, a stall is not.
+   private static final long MAX_COMPILE_MILLIS_PER_FRAME = 6L;
+   private static final long MAX_UPLOAD_MILLIS_PER_FRAME = 4L;
+   private static final int MAX_UPLOAD_COUNT_PER_FRAME = 16;
    private final PriorityBlockingQueue<ChunkRenderDispatcher.RenderChunk.ChunkCompileTask> toBatchHighPriority = Queues.newPriorityBlockingQueue();
    private final Queue<ChunkRenderDispatcher.RenderChunk.ChunkCompileTask> toBatchLowPriority = Queues.newLinkedBlockingDeque();
    private int highPriorityQuota = 2;
+   private long compileWindowStart = Util.getMillis();
+   private boolean compileDeferred;
    private final Queue<ChunkBufferBuilderPack> freeBuffers;
    private final Queue<Runnable> toUpload = Queues.newConcurrentLinkedQueue();
    private volatile int toBatchCount;
@@ -121,6 +129,11 @@ public class ChunkRenderDispatcher {
 
    private void runTask() {
       if (!this.freeBuffers.isEmpty()) {
+         if (Util.getMillis() - this.compileWindowStart >= MAX_COMPILE_MILLIS_PER_FRAME) {
+            this.compileDeferred = true;
+            return;
+         }
+
          ChunkRenderDispatcher.RenderChunk.ChunkCompileTask var1 = this.pollTask();
          if (var1 != null) {
             ChunkBufferBuilderPack var2 = this.freeBuffers.poll();
@@ -194,9 +207,22 @@ public class ChunkRenderDispatcher {
    }
 
    public void uploadAllPendingUploads() {
-      Runnable var1;
-      while ((var1 = this.toUpload.poll()) != null) {
-         var1.run();
+      // Called once per frame from LevelRenderer: this is the frame boundary that hands out a
+      // fresh budget to both the compile stage above and the upload stage below.
+      this.compileWindowStart = Util.getMillis();
+      this.compileDeferred = false;
+      long var1 = this.compileWindowStart + MAX_UPLOAD_MILLIS_PER_FRAME;
+      Runnable var3;
+
+      for (int var4 = 0; (var3 = this.toUpload.poll()) != null; var4++) {
+         var3.run();
+         if (var4 >= MAX_UPLOAD_COUNT_PER_FRAME || Util.getMillis() >= var1) {
+            break;
+         }
+      }
+
+      if (this.compileDeferred || this.toBatchHighPriority.size() + this.toBatchLowPriority.size() > 0) {
+         this.mailbox.tell(this::runTask);
       }
    }
 

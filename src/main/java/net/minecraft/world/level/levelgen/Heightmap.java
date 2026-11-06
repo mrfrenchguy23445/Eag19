@@ -26,6 +26,9 @@ public class Heightmap {
    private final BitStorage data;
    private final Predicate<BlockState> isOpaque;
    private final ChunkAccess chunk;
+   // Cooperative-port: scratch mutable for update()'s top-layer-removal rescan
+   // (single-threaded wasm-gc runtime; update() is not reentrant).
+   private final BlockPos.MutableBlockPos rescanPos = new BlockPos.MutableBlockPos();
 
    public Heightmap(ChunkAccess param0, Heightmap.Types param1) {
       this.isOpaque = param1.isOpaque();
@@ -35,35 +38,43 @@ public class Heightmap {
    }
 
    public static void primeHeightmaps(ChunkAccess param0, Set<Heightmap.Types> param1) {
+      // Cooperative-port optimisation: vanilla here re-created an ObjectArrayList of all
+      // heightmaps for EVERY column and walked it via an iterator with remove()/back()
+      // rewinds per non-air block. An int-pending array with swap-removal keeps the
+      // exact multi-type semantics (each heightmap independently stops at the first
+      // opaque block from the top; order within a column is irrelevant to results)
+      // without any allocation or iterator churn.
       int var2 = param1.size();
-      ObjectList<Heightmap> var3 = new ObjectArrayList<>(var2);
-      ObjectListIterator<Heightmap> var4 = var3.iterator();
+      Heightmap[] var3 = new Heightmap[var2];
+      int var4 = 0;
+      for (Heightmap.Types var5 : param1) {
+         var3[var4++] = param0.getOrCreateHeightmapUnprimed(var5);
+      }
+
       int var5 = param0.getHighestSectionPosition() + 16;
       BlockPos.MutableBlockPos var6 = new BlockPos.MutableBlockPos();
 
       for (int var7 = 0; var7 < 16; var7++) {
          for (int var8 = 0; var8 < 16; var8++) {
-            for (Heightmap.Types var10 : param1) {
-               var3.add(param0.getOrCreateHeightmapUnprimed(var10));
-            }
+            int var9 = var2;
 
-            for (int var9 = var5 - 1; var9 >= param0.getMinBuildHeight(); var9--) {
-               var6.set(var7, var9, var8);
-               BlockState var10 = param0.getBlockState(var6);
-               if (!var10.is(Blocks.AIR)) {
-                  while (var4.hasNext()) {
-                     Heightmap var11 = var4.next();
-                     if (var11.isOpaque.test(var10)) {
-                        var11.setHeight(var7, var8, var9 + 1);
-                        var4.remove();
+            for (int var10 = var5 - 1; var10 >= param0.getMinBuildHeight(); var10--) {
+               var6.set(var7, var10, var8);
+               BlockState var11 = param0.getBlockState(var6);
+               if (!var11.is(Blocks.AIR)) {
+                  for (int var12 = 0; var12 < var9; var12++) {
+                     Heightmap var13 = var3[var12];
+                     if (var13.isOpaque.test(var11)) {
+                        var13.setHeight(var7, var8, var10 + 1);
+                        var9--;
+                        var3[var12] = var3[var9];
+                        var12--;
                      }
                   }
 
-                  if (var3.isEmpty()) {
+                  if (var9 == 0) {
                      break;
                   }
-
-                  var4.back(var2);
                }
             }
          }
@@ -82,7 +93,9 @@ public class Heightmap {
             return true;
          }
       } else if (var5 - 1 == param1) {
-         BlockPos.MutableBlockPos var6 = new BlockPos.MutableBlockPos();
+         // Cooperative-port: reuse one scratch mutable instead of allocating per
+         // top-layer-removal rescan (single-threaded runtime, not reentrant).
+         BlockPos.MutableBlockPos var6 = this.rescanPos;
 
          for (int var7 = param1 - 1; var7 >= this.chunk.getMinBuildHeight(); var7--) {
             var6.set(param0, var7, param2);

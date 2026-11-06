@@ -2,6 +2,7 @@ package net.minecraft.world.level.levelgen.placement;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import java.util.List;
 import java.util.stream.Stream;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.RandomSource;
@@ -27,6 +28,17 @@ public class HeightmapPlacement extends PlacementModifier {
       int var5 = param2.getZ();
       int var6 = param0.getHeight(this.heightmap, var4, var5);
       return var6 > param0.getMinBuildHeight() ? Stream.of(new BlockPos(var4, var6, var5)) : Stream.of();
+   }
+
+   @Override
+   public void appendPositions(PlacementContext param0, RandomSource param1, BlockPos param2, List<BlockPos> param3) {
+      // Cooperative-port (TeaVM wasm-gc): stream-free; identical semantics.
+      int var4 = param2.getX();
+      int var5 = param2.getZ();
+      int var6 = param0.getHeight(this.heightmap, var4, var5);
+      if (var6 > param0.getMinBuildHeight()) {
+         param3.add(new BlockPos(var4, var6, var5));
+      }
    }
 
    @Override

@@ -109,40 +109,54 @@ public class LightTexture implements AutoCloseable {
             Vector3f var10 = new Vector3f(var3, var3, 1.0F).lerp(new Vector3f(1.0F, 1.0F, 1.0F), 0.35F);
             float var11 = this.blockLightRedFlicker + 1.5F;
             Vector3f var12 = new Vector3f();
+            // Everything below is loop-invariant: hoist it out of the 256-pixel loop, and precompute
+            // the per-level brightness tables instead of resolving dimensionType/effects/options per pixel.
+            DimensionType var13 = var2.dimensionType();
+            boolean var14 = var2.effects().forceBrightLightmap();
+            float var15 = this.renderer.getDarkenWorldAmount(param0);
+            float var16 = Math.max(0.0F, this.minecraft.options.gamma().get().floatValue() - var6);
+            float[] var17 = new float[16];
+            float[] var18 = new float[16];
 
-            for (int var13 = 0; var13 < 16; var13++) {
-               for (int var14 = 0; var14 < 16; var14++) {
-                  float var15 = getBrightness(var2.dimensionType(), var13) * var4;
-                  float var16 = getBrightness(var2.dimensionType(), var14) * var11;
-                  float var17 = var16;
-                  float var18 = var16 * ((var16 * 0.6F + 0.4F) * 0.6F + 0.4F);
-                  float var19 = var16 * (var16 * var16 * 0.6F + 0.4F);
-                  var12.set(var17, var18, var19);
-                  boolean var20 = var2.effects().forceBrightLightmap();
-                  if (var20) {
-                     var12.lerp(new Vector3f(0.99F, 1.12F, 1.0F), 0.25F);
+            for (int var19 = 0; var19 < 16; var19++) {
+               float var20 = getBrightness(var13, var19);
+               var17[var19] = var20 * var4;
+               var18[var19] = var20 * var11;
+            }
+
+            Vector3f var21 = new Vector3f();
+            Vector3f var22 = new Vector3f();
+            Vector3f var23 = new Vector3f(0.75F, 0.75F, 0.75F);
+            Vector3f var24 = new Vector3f(0.99F, 1.12F, 1.0F);
+
+            for (int var25 = 0; var25 < 16; var25++) {
+               for (int var26 = 0; var26 < 16; var26++) {
+                  float var27 = var18[var26];
+                  float var28 = var27 * ((var27 * 0.6F + 0.4F) * 0.6F + 0.4F);
+                  float var29 = var27 * (var27 * var27 * 0.6F + 0.4F);
+                  var12.set(var27, var28, var29);
+                  if (var14) {
+                     var12.lerp(var24, 0.25F);
                      clampColor(var12);
                   } else {
-                     Vector3f var21 = new Vector3f(var10).mul(var15);
+                     var21.set(var10).mul(var17[var25]);
                      var12.add(var21);
-                     var12.lerp(new Vector3f(0.75F, 0.75F, 0.75F), 0.04F);
-                     if (this.renderer.getDarkenWorldAmount(param0) > 0.0F) {
-                        float var22 = this.renderer.getDarkenWorldAmount(param0);
-                        Vector3f var23 = new Vector3f(var12).mul(0.7F, 0.6F, 0.6F);
-                        var12.lerp(var23, var22);
+                     var12.lerp(var23, 0.04F);
+                     if (var15 > 0.0F) {
+                        var21.set(var12).mul(0.7F, 0.6F, 0.6F);
+                        var12.lerp(var21, var15);
                      }
                   }
 
                   if (var8 > 0.0F) {
-                     float var21 = Math.max(var12.x(), Math.max(var12.y(), var12.z()));
-                     if (var21 < 1.0F) {
-                        float var22 = 1.0F / var21;
-                        Vector3f var23 = new Vector3f(var12).mul(var22);
-                        var12.lerp(var23, var8);
+                     float var30 = Math.max(var12.x(), Math.max(var12.y(), var12.z()));
+                     if (var30 < 1.0F) {
+                        var21.set(var12).mul(1.0F / var30);
+                        var12.lerp(var21, var8);
                      }
                   }
 
-                  if (!var20) {
+                  if (!var14) {
                      if (var7 > 0.0F) {
                         var12.add(-var7, -var7, -var7);
                      }
@@ -150,17 +164,15 @@ public class LightTexture implements AutoCloseable {
                      clampColor(var12);
                   }
 
-                  float var21 = this.minecraft.options.gamma().get().floatValue();
-                  Vector3f var22 = new Vector3f(this.notGamma(var12.x), this.notGamma(var12.y), this.notGamma(var12.z));
-                  var12.lerp(var22, Math.max(0.0F, var21 - var6));
-                  var12.lerp(new Vector3f(0.75F, 0.75F, 0.75F), 0.04F);
+                  var21.set(this.notGamma(var12.x), this.notGamma(var12.y), this.notGamma(var12.z));
+                  var12.lerp(var21, var16);
+                  var12.lerp(var23, 0.04F);
                   clampColor(var12);
                   var12.mul(255.0F);
-                  int var23 = 255;
-                  int var24 = (int)var12.x();
-                  int var25 = (int)var12.y();
-                  int var26 = (int)var12.z();
-                  this.lightPixels.setPixelRGBA(var14, var13, 0xFF000000 | var26 << 16 | var25 << 8 | var24);
+                  int var30 = (int)var12.x();
+                  int var31 = (int)var12.y();
+                  int var32 = (int)var12.z();
+                  this.lightPixels.setPixelRGBA(var26, var25, 0xFF000000 | var32 << 16 | var31 << 8 | var30);
                }
             }
 

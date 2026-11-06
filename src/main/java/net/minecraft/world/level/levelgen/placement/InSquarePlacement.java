@@ -1,6 +1,7 @@
 package net.minecraft.world.level.levelgen.placement;
 
 import com.mojang.serialization.Codec;
+import java.util.List;
 import java.util.stream.Stream;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.RandomSource;
@@ -18,6 +19,15 @@ public class InSquarePlacement extends PlacementModifier {
       int var4 = param1.nextInt(16) + param2.getX();
       int var5 = param1.nextInt(16) + param2.getZ();
       return Stream.of(new BlockPos(var4, param2.getY(), var5));
+   }
+
+   @Override
+   public void appendPositions(PlacementContext param0, RandomSource param1, BlockPos param2, List<BlockPos> param3) {
+      // Cooperative-port (TeaVM wasm-gc): no per-position Stream allocation; identical
+      // RNG consumption to getPositions.
+      int var4 = param1.nextInt(16) + param2.getX();
+      int var5 = param1.nextInt(16) + param2.getZ();
+      param3.add(new BlockPos(var4, param2.getY(), var5));
    }
 
    @Override

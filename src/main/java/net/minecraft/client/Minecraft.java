@@ -814,16 +814,11 @@ public class Minecraft extends ReentrantBlockableEventLoop<Runnable> implements 
    }
 
    private static boolean checkIs64Bit() {
-      String[] var0 = new String[]{"sun.arch.data.model", "com.ibm.vm.bitmode", "os.arch"};
-
-      for (String var4 : var0) {
-         String var5 = System.getProperty(var4);
-         if (var5 != null && var5.contains("64")) {
-            return true;
-         }
-      }
-
-      return false;
+      // Cooperative-port: under TeaVM the JVM-ish system properties (os.arch etc.) are
+      // absent, so this returned false and the title screen painted the "32-bit
+      // deprecation" warning label - whose dark background band sits right above/over
+      // the button area. A web browser port is not 32-bit constrained; always report 64.
+      return true;
    }
 
    public RenderTarget getMainRenderTarget() {
@@ -1846,7 +1841,22 @@ public class Minecraft extends ReentrantBlockableEventLoop<Runnable> implements 
 
          this.profiler.popPush("particles");
          if (!this.pause) {
-            this.particleEngine.tick();
+            // Cooperative-port hardening: last-resort net so a failing particle engine
+            // tick can never unwind into the main tick loop and kill the client, even
+            // during teardown/loading windows. Clearing particles heals any persistently
+            // bad engine state instead of crashing every frame.
+            try {
+               this.particleEngine.tick();
+            } catch (Throwable var9) {
+               try {
+                  LOGGER.error("Particle engine tick failed", var9);
+               } catch (Throwable var10) {
+               }
+               try {
+                  this.particleEngine.clear();
+               } catch (Throwable var10) {
+               }
+            }
          }
       } else if (this.pendingConnection != null) {
          this.profiler.popPush("pendingConnection");
@@ -2075,6 +2085,11 @@ public class Minecraft extends ReentrantBlockableEventLoop<Runnable> implements 
          this.dropAllTasks();
          var2.close();
       }
+
+      // Cooperative-port: ALL leftover particles must go before any further client
+      // tick in this flow - both updateScreenAndTick() and the waitForServer loop call
+      // runTick(), which ticks particles against a level that is being torn down.
+      this.particleEngine.clear();
 
       this.playerSocialManager.stopOnlineMode();
       if (this.metricsRecorder.isRecording()) {

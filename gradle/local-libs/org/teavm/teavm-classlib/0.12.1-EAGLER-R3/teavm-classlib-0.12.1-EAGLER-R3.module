@@ -78,11 +78,11 @@
         {
           "name": "teavm-classlib-0.12.1-EAGLER-R3.jar",
           "url": "teavm-classlib-0.12.1-EAGLER-R3.jar",
-          "size": 17668514,
-          "sha512": "caa4bd79dbc60bfbda0c87f803f5b5061465c303e07f498e3f641f7814a27a971f66e9dfa6b6cabedfad94ef89bfa437015fc4ad93a61beffee2045d4719d63a",
-          "sha256": "9d97842611f99c36a993a1f12a80b3784ef421bb7451b4c44c1c1fa2f28c7cc0",
-          "sha1": "7b6990b3cdba088055affb31f80acdc30fd234dd",
-          "md5": "210fb766333f84b8948c8b2937fb436e"
+          "size": 17690294,
+          "sha512": "2880722fbbeff419d13e188ef6fc585b9cd610b061b4a863051cd171d80738645e8dc7ba12d11c4d0555fd178d5ab3eaf1e7c4c5eef4213c0efd6252a25fd7a6",
+          "sha256": "93a5b77c11776e412f4c2f3cd2ef8080e5e1769146cd84f0dc9b9ca6e61bc569",
+          "sha1": "7d4c4f13c9bb298bea626c2a10602ef86ce84796",
+          "md5": "aaf5a41049066edcf2a2a6b5d9e3d18f"
         }
       ]
     },
@@ -150,11 +150,11 @@
         {
           "name": "teavm-classlib-0.12.1-EAGLER-R3.jar",
           "url": "teavm-classlib-0.12.1-EAGLER-R3.jar",
-          "size": 17668514,
-          "sha512": "caa4bd79dbc60bfbda0c87f803f5b5061465c303e07f498e3f641f7814a27a971f66e9dfa6b6cabedfad94ef89bfa437015fc4ad93a61beffee2045d4719d63a",
-          "sha256": "9d97842611f99c36a993a1f12a80b3784ef421bb7451b4c44c1c1fa2f28c7cc0",
-          "sha1": "7b6990b3cdba088055affb31f80acdc30fd234dd",
-          "md5": "210fb766333f84b8948c8b2937fb436e"
+          "size": 17690294,
+          "sha512": "2880722fbbeff419d13e188ef6fc585b9cd610b061b4a863051cd171d80738645e8dc7ba12d11c4d0555fd178d5ab3eaf1e7c4c5eef4213c0efd6252a25fd7a6",
+          "sha256": "93a5b77c11776e412f4c2f3cd2ef8080e5e1769146cd84f0dc9b9ca6e61bc569",
+          "sha1": "7d4c4f13c9bb298bea626c2a10602ef86ce84796",
+          "md5": "aaf5a41049066edcf2a2a6b5d9e3d18f"
         }
       ]
     },

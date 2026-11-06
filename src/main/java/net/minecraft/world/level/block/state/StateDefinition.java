@@ -12,6 +12,7 @@ import com.mojang.serialization.Decoder;
 import com.mojang.serialization.Encoder;
 import com.mojang.serialization.MapCodec;
 import java.util.Collection;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -43,22 +44,36 @@ public class StateDefinition<O, S extends StateHolder<O, S>> {
       MapCodec<S> var7 = var6;
       Map<Map<Property<?>, Comparable<?>>, S> var8 = Maps.newLinkedHashMap();
       List<S> var9 = Lists.newArrayList();
-      Stream<List<Pair<Property<?>, Comparable<?>>>> var10 = Stream.of(Collections.emptyList());
+      // Cooperative-port (FerriteCore-style): iterative equivalent of vanilla's nested
+      // stream flatMaps here (thousands of pipeline nodes at registry boot, x blocks).
+      // IMPORTANT: each step expands ONLY the current product — the stream version
+      // replaced var10 outright; keeping raw prefix lists would inject phantom partial
+      // states (empty/partial values maps) that break any() and every
+      // registerDefaultState(any().setValue(...)) at boot. Ordering matches vanilla:
+      // first property varies slowest.
+      List<List<Pair<Property<?>, Comparable<?>>>> var10 = new ArrayList<>();
+      var10.add(Collections.emptyList());
 
       for (Property<?> var12 : this.propertiesByName.values()) {
-         var10 = var10.flatMap(l_param1 -> var12.getPossibleValues().stream().map(l2_param2 -> {
-            List<Pair<Property<?>, Comparable<?>>> l2_var3 = Lists.newArrayList(l_param1);
-            l2_var3.add(Pair.of(var12, l2_param2));
-            return l2_var3;
-         }));
+         Collection<? extends Comparable<?>> var14 = var12.getPossibleValues();
+         List<List<Pair<Property<?>, Comparable<?>>>> l2_next = new ArrayList<>(var10.size() * var14.size());
+         for (List<Pair<Property<?>, Comparable<?>>> l2_var3 : var10) {
+            for (Comparable<?> var16 : var14) {
+               List<Pair<Property<?>, Comparable<?>>> l2_var5 = new ArrayList<>(l2_var3);
+               l2_var5.add(Pair.of(var12, var16));
+               l2_next.add(l2_var5);
+            }
+         }
+
+         var10 = l2_next;
       }
 
-      var10.forEach(l_param5 -> {
-         ImmutableMap<Property<?>, Comparable<?>> l_var6 = l_param5.stream().collect(ImmutableMap.toImmutableMap(Pair::getFirst, Pair::getSecond));
+      for (List<Pair<Property<?>, Comparable<?>>> l_var5 : var10) {
+         ImmutableMap<Property<?>, Comparable<?>> l_var6 = l_var5.stream().collect(ImmutableMap.toImmutableMap(Pair::getFirst, Pair::getSecond));
          S l_var7 = param2.create(param1, l_var6, var7);
          var8.put(l_var6, l_var7);
          var9.add(l_var7);
-      });
+      }
 
       for (S var12 : var9) {
          var12.populateNeighbours(var8);

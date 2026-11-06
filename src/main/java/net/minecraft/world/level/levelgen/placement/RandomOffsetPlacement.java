@@ -2,6 +2,7 @@ package net.minecraft.world.level.levelgen.placement;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import java.util.List;
 import java.util.stream.Stream;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.RandomSource;
@@ -42,6 +43,15 @@ public class RandomOffsetPlacement extends PlacementModifier {
       int var5 = param2.getY() + this.ySpread.sample(param1);
       int var6 = param2.getZ() + this.xzSpread.sample(param1);
       return Stream.of(new BlockPos(var4, var5, var6));
+   }
+
+   @Override
+   public void appendPositions(PlacementContext param0, RandomSource param1, BlockPos param2, List<BlockPos> param3) {
+      // Cooperative-port (TeaVM wasm-gc): stream-free; identical RNG consumption.
+      int var4 = param2.getX() + this.xzSpread.sample(param1);
+      int var5 = param2.getY() + this.ySpread.sample(param1);
+      int var6 = param2.getZ() + this.xzSpread.sample(param1);
+      param3.add(new BlockPos(var4, var5, var6));
    }
 
    @Override
