@@ -1,0 +1,127 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "com.mojang",
+    "module": "datafixerupper",
+    "version": "6.0.6",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "7.4.2"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "com.google.code.gson",
+          "module": "gson",
+          "version": {
+            "requires": "2.8.9"
+          }
+        },
+        {
+          "group": "com.google.guava",
+          "module": "guava",
+          "version": {
+            "requires": "31.0.1-jre"
+          }
+        },
+        {
+          "group": "it.unimi.dsi",
+          "module": "fastutil",
+          "version": {
+            "requires": "8.5.6"
+          }
+        },
+        {
+          "group": "com.google.code.findbugs",
+          "module": "jsr305",
+          "version": {
+            "requires": "3.0.2"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "datafixerupper-6.0.6.jar",
+          "url": "datafixerupper-6.0.6.jar",
+          "size": 689986,
+          "sha512": "c2e3bd35f0f618b1ed23a6ec54ea5fabe7ecc374e4a59a78f93ea487643e57040b24c6e6955fab7fe6a316143dd5cf608b4c0773ef107039466536abd6d2a6d4",
+          "sha256": "c5722083471a0f3245194b1efcbe7be8b2d3e42720006cac31cf3e8c8b24f9a8",
+          "sha1": "e38e20946530646e866db03b2b192883d0ea6e84",
+          "md5": "93d8641bdfe57ad7ce2bb016c3e76ab6"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "org.slf4j",
+          "module": "slf4j-api",
+          "version": {
+            "requires": "1.8.0-beta4"
+          }
+        },
+        {
+          "group": "org.apache.commons",
+          "module": "commons-lang3",
+          "version": {
+            "requires": "3.12.0"
+          }
+        },
+        {
+          "group": "com.google.code.gson",
+          "module": "gson",
+          "version": {
+            "requires": "2.8.9"
+          }
+        },
+        {
+          "group": "com.google.guava",
+          "module": "guava",
+          "version": {
+            "requires": "31.0.1-jre"
+          }
+        },
+        {
+          "group": "it.unimi.dsi",
+          "module": "fastutil",
+          "version": {
+            "requires": "8.5.6"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "datafixerupper-6.0.6.jar",
+          "url": "datafixerupper-6.0.6.jar",
+          "size": 689986,
+          "sha512": "c2e3bd35f0f618b1ed23a6ec54ea5fabe7ecc374e4a59a78f93ea487643e57040b24c6e6955fab7fe6a316143dd5cf608b4c0773ef107039466536abd6d2a6d4",
+          "sha256": "c5722083471a0f3245194b1efcbe7be8b2d3e42720006cac31cf3e8c8b24f9a8",
+          "sha1": "e38e20946530646e866db03b2b192883d0ea6e84",
+          "md5": "93d8641bdfe57ad7ce2bb016c3e76ab6"
+        }
+      ]
+    }
+  ]
+}

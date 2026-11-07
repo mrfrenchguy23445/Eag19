@@ -1,0 +1,123 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "org.teavm",
+    "module": "teavm-jso-impl",
+    "version": "0.9.2",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.4"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 11,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "files": [
+        {
+          "name": "teavm-jso-impl-0.9.2.jar",
+          "url": "teavm-jso-impl-0.9.2.jar",
+          "size": 102717,
+          "sha512": "b0e2b7ba9cae7a6f7f0535a381b338cb5ae6cc7c4e8213a1e32dc2bdb8f49dcf46cdc6da5e0f68f13c863b4036ac637ea173fabf520c6c72c7897f79b4af2e89",
+          "sha256": "bb353ef49b9d4d4ddc6d7a1d203d1f61ecea698edf8bd1c15c51bef7ba0d8942",
+          "sha1": "647823ca382f269a6af5f607660b6524284e1dbf",
+          "md5": "32e0cb661a4848b883d4ee2c6a951da0"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 11,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "org.teavm",
+          "module": "teavm-jso",
+          "version": {
+            "requires": "0.9.2"
+          }
+        },
+        {
+          "group": "org.teavm",
+          "module": "teavm-jso-apis",
+          "version": {
+            "requires": "0.9.2"
+          }
+        },
+        {
+          "group": "org.teavm",
+          "module": "teavm-relocated-libs-rhino",
+          "version": {
+            "requires": "0.9.2"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "teavm-jso-impl-0.9.2.jar",
+          "url": "teavm-jso-impl-0.9.2.jar",
+          "size": 102717,
+          "sha512": "b0e2b7ba9cae7a6f7f0535a381b338cb5ae6cc7c4e8213a1e32dc2bdb8f49dcf46cdc6da5e0f68f13c863b4036ac637ea173fabf520c6c72c7897f79b4af2e89",
+          "sha256": "bb353ef49b9d4d4ddc6d7a1d203d1f61ecea698edf8bd1c15c51bef7ba0d8942",
+          "sha1": "647823ca382f269a6af5f607660b6524284e1dbf",
+          "md5": "32e0cb661a4848b883d4ee2c6a951da0"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "teavm-jso-impl-0.9.2-sources.jar",
+          "url": "teavm-jso-impl-0.9.2-sources.jar",
+          "size": 53715,
+          "sha512": "11059709dae43597c4bdc7d6ec63fc1def720de11107a43d018802c17188e57efac01bf5fc7f19890011758c866a263a985568509513efa5d0e1aa8dfe72ac7f",
+          "sha256": "709fa5b6b56edeb37bf4d10c8bebbb3ede70d53ff76b6e365cba6f06854e8116",
+          "sha1": "3b54331404a0bddc4deb6f2c5ea0119070f12a0a",
+          "md5": "9cd8da6bdaff313cb63d5084ed442210"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "teavm-jso-impl-0.9.2-javadoc.jar",
+          "url": "teavm-jso-impl-0.9.2-javadoc.jar",
+          "size": 107716,
+          "sha512": "1a986d9fc19a50ad7e661c41246aff4d758ea0bdcf9a19beb86fa9dc88fd87ca9f4246ef156e29ad43cc80e61d544c31d29aabf27e88d12f911764160c4f952b",
+          "sha256": "4fac2a76783db19ed0d8823400e8e1afa1c39a567bbf1a322f1451cda524ed9e",
+          "sha1": "dc105c8bc116b4aa58d5c1384c5cc63eb3b50edf",
+          "md5": "2dc6e9b717a58e230a56ae6e79d22f57"
+        }
+      ]
+    }
+  ]
+}

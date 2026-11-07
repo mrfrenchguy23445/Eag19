@@ -1,0 +1,125 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "org.teavm",
+    "module": "teavm-tooling",
+    "version": "0.9.2",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.4"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 11,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "org.teavm",
+          "module": "teavm-core",
+          "version": {
+            "requires": "0.9.2"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "teavm-tooling-0.9.2.jar",
+          "url": "teavm-tooling-0.9.2.jar",
+          "size": 61928,
+          "sha512": "657f76d6a02a9b40319c78b6f626ce9d5fa2a04016aaad65715a8dad279ffe6f26979668076222940e30766d34684370e2a33d17117780fb4eb8d77a2515e358",
+          "sha256": "2a59a074658c3c9d30be193eae89ae70a910e26b5709cf628937eaea927bf43c",
+          "sha1": "5d62f0240521751bdf1bc4580787d1b7125f78dc",
+          "md5": "e0e0cbd4d8a5c266a28f06bf7bed45a2"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 11,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "org.teavm",
+          "module": "teavm-core",
+          "version": {
+            "requires": "0.9.2"
+          }
+        },
+        {
+          "group": "org.teavm",
+          "module": "teavm-relocated-libs-commons-io",
+          "version": {
+            "requires": "0.9.2"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "teavm-tooling-0.9.2.jar",
+          "url": "teavm-tooling-0.9.2.jar",
+          "size": 61928,
+          "sha512": "657f76d6a02a9b40319c78b6f626ce9d5fa2a04016aaad65715a8dad279ffe6f26979668076222940e30766d34684370e2a33d17117780fb4eb8d77a2515e358",
+          "sha256": "2a59a074658c3c9d30be193eae89ae70a910e26b5709cf628937eaea927bf43c",
+          "sha1": "5d62f0240521751bdf1bc4580787d1b7125f78dc",
+          "md5": "e0e0cbd4d8a5c266a28f06bf7bed45a2"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "teavm-tooling-0.9.2-sources.jar",
+          "url": "teavm-tooling-0.9.2-sources.jar",
+          "size": 36815,
+          "sha512": "1ca7f7d8d995febd998ef90547469735c3e9efa2c32f9c066ce42b5240682ec19b6e91b8a94d105ebe29abedfee9b62e2107324302978d4fd2dda824935d1edd",
+          "sha256": "2d6133ecc05ee6aa69016d59944740db1ebe915220b88108e6df0f7df23b1bfa",
+          "sha1": "f3a753289d6777fca473c4b48ba5a100433b07f1",
+          "md5": "0f2a46e4c2e8adc7ded5df227a590065"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "teavm-tooling-0.9.2-javadoc.jar",
+          "url": "teavm-tooling-0.9.2-javadoc.jar",
+          "size": 184311,
+          "sha512": "faf752ce3d07f85830e59c1c30bf7bb45feb483adddf8c045589b50d05e0afd2349449af20baffb0e6176f50af3c8bd85dddc45c11dcae3fef4bda1208a90646",
+          "sha256": "751aca58db830b11d1dbeef76dd5385950c92bc9fd18ed94c00faf8950372895",
+          "sha1": "3884061a0e57d67631257a9896105ed747e812ad",
+          "md5": "31591bac31910707483fb2263bdc66fc"
+        }
+      ]
+    }
+  ]
+}

@@ -406,6 +406,29 @@ public class PlatformOpenGL {
 	@Import(module = "platformOpenGL", name = "glBufferSubData")
 	static native void _wglBufferSubDataN(int target, int dstOffset, ArrayBufferView typedArray, int srcOffset, int length);
 
+	// Backing store for the sodium GL arena's _wglCopyBufferSubData call sites (GlBufferArena,
+	// EaglercraftGPU). Implemented on the JS side via WebGL2 ctx.copyBufferSubData; unsupported
+	// on WebGL1 like glBindBufferRange.
+	@Import(module = "platformOpenGL", name = "glCopyBufferSubData")
+	public static native void _wglCopyBufferSubData(int target, int srcTarget, int srcOffset, int dstOffset, int size);
+
+	public static void _wglMultiDrawElements(int mode, IntBuffer counts, int type, IntBuffer firsts, int drawCount) {
+		_wglMultiDrawElementsN(mode, type, WASMGCBufferAllocator.getIntBufferView(counts), WASMGCBufferAllocator.getIntBufferView(firsts), drawCount);
+	}
+
+	// glMultiDrawElements is backed by the WEBGL_multi_draw extension: multiDrawElementsWEBGL
+	// (mode, countsList, countsOffset, type, offsetsList, offsetsOffset, drawCount). Both buffers
+	// arrive as heap Int32Array views already positioned at index 0 with length == drawCount.
+	@Import(module = "platformOpenGL", name = "glMultiDrawElements")
+	private static native void _wglMultiDrawElementsN(int mode, int type, ArrayBufferView counts, ArrayBufferView firsts, int drawCount);
+
+	public static boolean checkMultiDrawCapable() {
+		return _glCheckMultiDrawCapableN();
+	}
+
+	@Import(module = "platformOpenGL", name = "glCheckMultiDrawCapable")
+	private static native boolean _glCheckMultiDrawCapableN();
+
 	public static void _wglBindVertexArray(IVertexArrayGL objId) {
 		_wglBindVertexArrayN(objId != null ? ((OpenGLObjects.VertexArrayGL)objId).ptr : null);
 	}

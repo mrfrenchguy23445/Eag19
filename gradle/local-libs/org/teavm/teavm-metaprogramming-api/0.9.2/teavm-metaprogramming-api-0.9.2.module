@@ -1,0 +1,100 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "org.teavm",
+    "module": "teavm-metaprogramming-api",
+    "version": "0.9.2",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.4"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 11,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "files": [
+        {
+          "name": "teavm-metaprogramming-api-0.9.2.jar",
+          "url": "teavm-metaprogramming-api-0.9.2.jar",
+          "size": 8993,
+          "sha512": "6e1b5bf2b9246722e9652f9a74b0a47a8fb165f82cc754e6fe4952b63bec4ffe8d08933c92f597f8b26f53b869a68c0eb3cd3e198293ab3bf5f568175f0854bb",
+          "sha256": "c877490e8403d80f30c525e9f4c41b27f06f9586860d6e26489f8504592c1859",
+          "sha1": "0b4b8eab8bb8c18fd0940dcca4463f21700bf607",
+          "md5": "dd8ffabb3d9623dbd64225df6c08bb68"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 11,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "teavm-metaprogramming-api-0.9.2.jar",
+          "url": "teavm-metaprogramming-api-0.9.2.jar",
+          "size": 8993,
+          "sha512": "6e1b5bf2b9246722e9652f9a74b0a47a8fb165f82cc754e6fe4952b63bec4ffe8d08933c92f597f8b26f53b869a68c0eb3cd3e198293ab3bf5f568175f0854bb",
+          "sha256": "c877490e8403d80f30c525e9f4c41b27f06f9586860d6e26489f8504592c1859",
+          "sha1": "0b4b8eab8bb8c18fd0940dcca4463f21700bf607",
+          "md5": "dd8ffabb3d9623dbd64225df6c08bb68"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "teavm-metaprogramming-api-0.9.2-sources.jar",
+          "url": "teavm-metaprogramming-api-0.9.2-sources.jar",
+          "size": 11514,
+          "sha512": "36916dc8734fce0a80aa585eb4ea3f55a91498336b99954fe3b369f7612bc6957e0e3c6cc530f37272ccc7f231edca8d5d40968091ba6691f6e7533a5bc2c6d2",
+          "sha256": "9c3c57b87f654d5676a6827168d7844356d4b7e5e3d7067e8998348bc28233ef",
+          "sha1": "b4b4295b10f3a02df5cb034abf84aa8b9a3d0a42",
+          "md5": "cd32973196b8362ba1be8b8660ed5a2a"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "teavm-metaprogramming-api-0.9.2-javadoc.jar",
+          "url": "teavm-metaprogramming-api-0.9.2-javadoc.jar",
+          "size": 120817,
+          "sha512": "c57765ff97061f255db2d70fe63205335def55b2ee932008ba1aae4b9bf71affc494dedbe9b17c7f966b48c4098804dbc158e116c5325e040afe5c5116383400",
+          "sha256": "61bb238bd35ffc301b00d079dbd10ef9c7a5d824f288ce23069c889c350af773",
+          "sha1": "1820a24390ae9d633397883d5d9d3c8dadd4af1b",
+          "md5": "7c33904862f526207d0419b20babec8d"
+        }
+      ]
+    }
+  ]
+}

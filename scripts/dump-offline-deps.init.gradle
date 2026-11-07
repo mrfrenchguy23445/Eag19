@@ -1,0 +1,31 @@
+// Prints every module/artifact the build resolves, for building gradle/local-libs.
+//
+//   ./gradlew -I scripts/dump-offline-deps.init.gradle dumpOfflineDeps --continue
+//
+// One ART line per artifact file: group|name|version|absolute path.
+// Resolution is lenient: a configuration that cannot resolve (the desktop target's
+// platform-specific bits, say) prints its errors on CFGERR lines and is skipped, so
+// a single missing module never hides the rest of the graph.
+
+allprojects { p ->
+	p.tasks.register("dumpOfflineDeps") {
+		doLast {
+			def seen = new HashSet()
+			p.configurations.findAll { it.canBeResolved }.each { cfg ->
+				try {
+					cfg.resolvedConfiguration.lenientConfiguration.allModuleDependencies.each { dep ->
+						def id = dep.module.id
+						dep.moduleArtifacts.each { art ->
+							if (art.file != null && art.file.exists()) {
+								println "ART|${id.group}|${id.name}|${id.version}|${art.file.absolutePath}"
+							}
+						}
+						seen.add("${id.group}:${id.name}:${id.version}".toString())
+					}
+				} catch (Throwable t) {
+					println "CFGERR|${p.path}|${cfg.name}|${t.getClass().simpleName}: ${t.message}"
+				}
+			}
+		}
+	}
+}

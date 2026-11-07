@@ -226,12 +226,8 @@ sourceSets {
 	}
 }
 
-repositories {
-	maven {
-		name = "eagler-teavm"
-		url = uri("https://eaglercraft-teavm-fork.github.io/maven/")
-	}
-}
+// No project-level repositories: the root build's allprojects block points every
+// project at gradle/local-libs, which vendors teavm-core and the classlib.
 
 dependencies {
 	// Only java.security.MessageDigest reaches out, and only to reuse the vendored

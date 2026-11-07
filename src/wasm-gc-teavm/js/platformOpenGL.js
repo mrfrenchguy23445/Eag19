@@ -120,6 +120,18 @@ function setCurrentGLContext(ctx, glesVersIn, allowExts, glImports) {
 	glImports["glBindBuffer"] = ctx.bindBuffer.bind(ctx);
 	glImports["glBufferData"] = ctx.bufferData.bind(ctx);
 	glImports["glBufferSubData"] = ctx.bufferSubData.bind(ctx);
+	// copyBufferSubData is core in WebGL2 (ES 3.00) and absent from WebGL1.
+	glImports["glCopyBufferSubData"] = glesVersIn >= 300 ? ctx.copyBufferSubData.bind(ctx) : unsupportedFunc(platfOpenGLName, "glCopyBufferSubData");
+	// multi-draw comes from the WEBGL_multi_draw extension (WebGL2 only here).
+	const wglMultiDrawExt = (allowExts && glesVersIn >= 300) ? ctx.getExtension("WEBGL_multi_draw") : null;
+	if(wglMultiDrawExt !== null) {
+		glImports["glMultiDrawElements"] = function(mode, type, counts, firsts, drawCount) {
+			wglMultiDrawExt.multiDrawElementsWEBGL(mode, counts, 0, type, firsts, 0, drawCount);
+		};
+	}else {
+		setUnsupportedFunc(glImports, platfOpenGLName, "glMultiDrawElements");
+	}
+	glImports["glCheckMultiDrawCapable"] = function() { return wglMultiDrawExt !== null; };
 	glImports["glEnableVertexAttribArray"] = ctx.enableVertexAttribArray.bind(ctx);
 	glImports["glDisableVertexAttribArray"] = ctx.disableVertexAttribArray.bind(ctx);
 	glImports["glVertexAttribPointer"] = ctx.vertexAttribPointer.bind(ctx);
