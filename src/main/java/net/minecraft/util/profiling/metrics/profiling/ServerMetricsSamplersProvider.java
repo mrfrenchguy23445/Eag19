@@ -18,8 +18,6 @@ import net.minecraft.util.profiling.metrics.MetricSampler;
 import net.minecraft.util.profiling.metrics.MetricsRegistry;
 import net.minecraft.util.profiling.metrics.MetricsSamplerProvider;
 import org.slf4j.Logger;
-import oshi.SystemInfo;
-import oshi.hardware.CentralProcessor;
 
 public class ServerMetricsSamplersProvider implements MetricsSamplerProvider {
    private static final Logger LOGGER = LogUtils.getLogger();
@@ -81,21 +79,20 @@ public class ServerMetricsSamplersProvider implements MetricsSamplerProvider {
    }
 
    static class CpuStats {
-      private final SystemInfo systemInfo = new SystemInfo();
-      private final CentralProcessor processor = this.systemInfo.getHardware().getProcessor();
-      public final int nrOfCpus = this.processor.getLogicalProcessorCount();
-      private long[][] previousCpuLoadTick = this.processor.getProcessorCpuLoadTicks();
-      private double[] currentLoad = this.processor.getProcessorCpuLoadBetweenTicks(this.previousCpuLoadTick);
+      /*
+       * PORT NOTE (wasm_gc): upstream instantiates oshi.SystemInfo here, which
+       * is a jna-native stack the TeaVM classlib cannot link (and cannot run
+       * in a browser anyway). Port note mirrored from net.minecraft.SystemReport:
+       * answer "1 logical cpu at 0% load" so the boot-time
+       * runtimeIndependentSamplers() call still builds its samplers, and the
+       * profile screen shows cpu#0 at 0.0 load.
+       */
+      public final int nrOfCpus = 1;
+      private double[] currentLoad = new double[] { 0.0 };
       private long lastPollMs;
 
       public double loadForCpu(int param0) {
-         long var2 = System.currentTimeMillis();
-         if (this.lastPollMs == 0L || this.lastPollMs + 501L < var2) {
-            this.currentLoad = this.processor.getProcessorCpuLoadBetweenTicks(this.previousCpuLoadTick);
-            this.previousCpuLoadTick = this.processor.getProcessorCpuLoadTicks();
-            this.lastPollMs = var2;
-         }
-
+         this.lastPollMs = System.currentTimeMillis();
          return this.currentLoad[param0] * 100.0;
       }
    }
