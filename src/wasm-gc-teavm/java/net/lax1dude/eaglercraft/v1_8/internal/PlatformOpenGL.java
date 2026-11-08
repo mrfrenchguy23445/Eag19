@@ -1954,25 +1954,43 @@ public class PlatformOpenGL {
 	// The matrix forms already exist on the _wgl* layer taking a lax1dude
 	// FloatBuffer, so these convert and delegate rather than looping.
 
+	// PORT NOTE (Eag19 / TeaVM WASM-GC): every matrix uniform of every draw call used to
+	// allocate a fresh heap FloatBuffer (Heap.alloc + object) and a float[] copy, then free
+	// the buffer again -- uniformMatrix uploads alone ran into the thousands per frame.
+	// One growable scratch buffer removes both allocations; the port is single-threaded and
+	// _wglUniformMatrix*fv copies synchronously, so reuse is safe. limit(len) is what keeps
+	// getFloatBufferView() from covering the spare capacity.
+	private static FloatBuffer matrixScratchBuf = null;
+	private static float[] matrixScratchArr = new float[0];
+
+	private static FloatBuffer matrixScratch(int len) {
+		if (matrixScratchBuf == null || matrixScratchBuf.capacity() < len) {
+			int cap = Math.max(64, len);
+			matrixScratchArr = new float[cap];
+			matrixScratchBuf = WASMGCBufferAllocator.allocateFloatBuffer(cap);
+		}
+		return matrixScratchBuf;
+	}
+
 	public static void _glUniformMatrix2fv(int location, boolean transpose, java.nio.FloatBuffer value) {
 		IUniformGL u = uniformRegistry.get(location);
 		if (u == null) {
 			return;
 		}
 		int len = value.remaining();
-		FloatBuffer eagler = WASMGCBufferAllocator.allocateFloatBuffer(len);
-		float[] tmp = new float[len];
+		FloatBuffer eagler = matrixScratch(len);
+		eagler.clear();
 		if (len > 0) {
-			value.get(value.position(), tmp, 0, len);
-			eagler.put(tmp, 0, len);
+			value.get(value.position(), matrixScratchArr, 0, len);
+			eagler.put(matrixScratchArr, 0, len);
 		}
 		// PORT NOTE (Eag19 / TeaVM WASM-GC): put() leaves position == len, so
 		// getFloatBufferView() would build a zero-length Float32Array and WebGL would
 		// reject the upload with "uniformMatrix2fv: no array". Rewind so the view
 		// covers the data that was just written.
+		eagler.limit(len);
 		eagler.position(0);
 		_wglUniformMatrix2fv(u, transpose, eagler);
-		WASMGCBufferAllocator.freeFloatBuffer(eagler);
 	}
 
 	public static void _glUniformMatrix3fv(int location, boolean transpose, java.nio.FloatBuffer value) {
@@ -1981,19 +1999,19 @@ public class PlatformOpenGL {
 			return;
 		}
 		int len = value.remaining();
-		FloatBuffer eagler = WASMGCBufferAllocator.allocateFloatBuffer(len);
-		float[] tmp = new float[len];
+		FloatBuffer eagler = matrixScratch(len);
+		eagler.clear();
 		if (len > 0) {
-			value.get(value.position(), tmp, 0, len);
-			eagler.put(tmp, 0, len);
+			value.get(value.position(), matrixScratchArr, 0, len);
+			eagler.put(matrixScratchArr, 0, len);
 		}
 		// PORT NOTE (Eag19 / TeaVM WASM-GC): put() leaves position == len, so
 		// getFloatBufferView() would build a zero-length Float32Array and WebGL would
 		// reject the upload with "uniformMatrix3fv: no array". Rewind so the view
 		// covers the data that was just written.
+		eagler.limit(len);
 		eagler.position(0);
 		_wglUniformMatrix3fv(u, transpose, eagler);
-		WASMGCBufferAllocator.freeFloatBuffer(eagler);
 	}
 
 	public static void _glUniformMatrix4fv(int location, boolean transpose, java.nio.FloatBuffer value) {
@@ -2002,20 +2020,20 @@ public class PlatformOpenGL {
 			return;
 		}
 		int len = value.remaining();
-		FloatBuffer eagler = WASMGCBufferAllocator.allocateFloatBuffer(len);
-		float[] tmp = new float[len];
+		FloatBuffer eagler = matrixScratch(len);
+		eagler.clear();
 		if (len > 0) {
-			value.get(value.position(), tmp, 0, len);
-			eagler.put(tmp, 0, len);
+			value.get(value.position(), matrixScratchArr, 0, len);
+			eagler.put(matrixScratchArr, 0, len);
 		}
 		// PORT NOTE (Eag19 / TeaVM WASM-GC): put() leaves position == len, so
 		// getFloatBufferView() would build a zero-length Float32Array and WebGL would
 		// reject the upload with "uniformMatrix4fv: no array". Rewind so the view
 		// covers the data that was just written. This floods every frame because
 		// every matrix uniform (ModelViewMat, ProjMat, ...) goes through here.
+		eagler.limit(len);
 		eagler.position(0);
 		_wglUniformMatrix4fv(u, transpose, eagler);
-		WASMGCBufferAllocator.freeFloatBuffer(eagler);
 	}
 
 	public static int _glGetAttribLocation(int program, CharSequence name) {
