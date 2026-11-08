@@ -192,3 +192,36 @@ Phases A+B+C-scoped+D-cherry-picks all land in ONE build:
   reliable. Reproduce yourself via a fresh `index.html` tab (fast boot and
   deterministic), console tail via browser console tool, then reason from
   message + source, not from the frame list.
+
+## EPK toolchain + eagler asset/lang mount (Nov 8)
+
+- The stock assets.epk has NO `assets/eagler/*` entries. Skins/GLSL/audioctx/
+  icudt/eagtek were sourced from the official EaglercraftX 1.8.8 WASM offline
+  download (cdn.eaglercraft.net/objects/dl/1.8.8/eaglercraft1-8-wasm-
+  62da5f39.zip): that HTML embeds one base64 data-URI holding an `EAG$WASM`
+  EPW container; `scripts/epk-dump-offline.mjs` extracts it, `scripts/epw-
+  split.py` (WSL python, xz) splits the EPW, `scripts/epk-extract-direct.mjs`
+  pulls `assets/eagler/**` (410 entries), `scripts/make-folder-epk.mjs` packs
+  them into `javascript/eagler.epk` (mounted LAST in dev index.html so eagler
+  entries win duplicates).
+- Raw-key title/profile screen (`menu.editprofile`, `eagler.profile.*`):
+  ClientPackSource exposes the `eagler` resource namespace, and
+  ClientLanguage.loadFrom loads `lang/en_us.json` from EVERY namespace, so
+  dropping `assets/eagler/lang/en_us.json` into eagler.epk merges the eagler
+  strings as pure data - no Java change, no wasm rebuild. The strings are
+  lifted from upstream 1.8 en_US.lang (`eaglercraft.*` keys) by
+  `scripts/make-eagler-lang.mjs` (repo copy: scripts/eagler-lang-en_us.json
+  overlay), with port-renamed aliases menu.editprofile / eagler.profile.title
+  / eagler.profile.username added manually.
+- Custom EPK writers must emit, in order: `EAGPKG$$` magic, len-prefixed
+  `ver2.0`, filename(u8-len), comment(u16-len), date(floatBE, 8 bytes),
+  numFiles(u32), comp char; then gzip(comp 'G') stream; terminator `:::YEE:>`.
+  FILE entries: tag + name + u32(len=4crc+data+1':') + u32 crc + data + ':',
+  each entry ends with '>'. Verify with scripts/epk-list.mjs (crcBad=0).
+- Dev server data pack: `javascript/data.epk` from
+  src/wasm-gc-teavm/resources/minecraft-1.19.4-vanilla-data.zip via
+  scripts/make-data-epk.mjs (SERVER_DATA pack type; without it CreateWorld
+  crashes "Missing key ... world_preset: minecraft:normal"). Confirmed working
+  Nov 8: world generated end-to-end, "chunks/s 52-69", zero console errors.
+- EditProfileScreen is the first-boot screen (no panorama by design; the
+  panorama renders on the TitleScreen after confirming the profile).
