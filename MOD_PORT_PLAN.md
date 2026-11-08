@@ -15,6 +15,44 @@ allocation/CPU-oriented, not concurrency-oriented.
 - FPS defaults + one-time perfAutoTune migration; title screen tint removed (stale
   overlay fill deleted from TitleScreen.render).
 
+## Verified wasm-gc boot (Nov 8)
+- `classes.wasm` (unstubbed) boots to the title screen (`EditProfileScreen` behind
+  LoadingOverlay) with **zero console errors**. Sweep on the same artifact:
+  `status=clean masked=0`.
+- Dev loader: `target_teavm_wasm_gc/javascript/index.html` (static, port 8097 via
+  `scripts/serve-wasm-dev.mjs`, opts namespaced `_eaglercraftX_wasm_dev`).
+- **Contract gotchas, both boot-fatal and easy to re-trip:**
+  - rootElement must contain ONLY the empty `<div id="_eaglercraftX_game_root">`:
+    the JS runtime re-positions `rootElement.lastChild` and a whitespace text
+    node there crashes `initializeContext` with
+    `Cannot set properties of undefined (setting 'position')`.
+  - `window.eaglercraftXOpts.useJOrbisAudioDecoder = true` in dev: the stock
+    `assets.epk` (Jun 6, built from desktopRuntime/resources) has no
+    `assets/eagler/audioctx_test_ogg.dat`, and wasm-gc PlatformAudio calls
+    `getRequiredResourceBytes` (hard-fail) for it. With the embedded JOrbis
+    decoder enabled the probe is skipped entirely and OGG decoding runs in Java
+    (the intended path for this target). `silence_loop.wav` absence is harmless
+    (null-guarded). Long-term fix if wanted: synthesize ogg/wav32f/wav16 probe
+    files into the EPK sources and rebuild the EPK, not the wasm.
+- Boot log milestones: `Sound engine started`, `Reading 2 EPK files`,
+  SimpleReloadInstance prepare/apply, `LightOverlay ... overlay finished,
+  removing overlay`, then steady `EditProfileScreen` frames.
+
+## Wave-2 (landed Nov 8, commit 956fa31)
+1. `LayerLightEngine` chunk cache widened 2 → 4 slots (Lithium-style): the BFS
+   regularly ping-pongs between two chunks at column/tree edges and a 2-slot
+   MRU evicts the other hot chunk on every miss (50% thrash). Pure MRU widening,
+   semantics unchanged.
+2. Starlight Phase C step 1 (measure first): `ThreadedLevelLightEngine.runUpdate`
+   now records a nanosecond "light bill" — task runnable time vs graph BFS time —
+   and logs one `Diag: LightEngine: N batches in last X ms wall: tasks=.. ms,
+   BFS=.. ms` line per 5 s window of *activity* (idle wall time is skipped).
+   Next step pending this data: only port the full Starlight engine if the BFS
+   share is actually large.
+- Validation owed after next wasm build: sweep clean + import/classinfo gates +
+  boot test + read the LightEngine Diag lines during worldgen and record the
+  measured light share here.
+
 ## Phase A — FerriteCore port (next build)
 Goal: kill block-state lookup overhead — the hottest remaining vanilla path
 (setValue/getValue run constantly in feature placement, updateShapeAtEdge, model
@@ -116,6 +154,8 @@ Phases A+B+C-scoped+D-cherry-picks all land in ONE build:
   sweep must be clean → serve on 8097 (entry point: index.html — autokey.html no
   longer exists) → user boot test.
 - Offline bundle regeneration (makeMainWasmClientBundle) after each validated build.
+- Nov 8: sweep is CLEAN on the unstubbed build — the stub pipeline is NOT part of
+  the loop anymore; only re-run it if a sweep ever goes non-clean again.
 
 ## Environment notes (recurring gotchas)
 - gradle daemons can wedge during long EPK pack tasks: `./gradlew --stop` + kill
