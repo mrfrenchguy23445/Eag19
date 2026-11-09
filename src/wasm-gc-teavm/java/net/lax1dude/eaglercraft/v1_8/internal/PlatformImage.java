@@ -41,7 +41,10 @@ import java.util.zip.Inflater;
  *   resize: a triangle (tent) filter, separable. STB's stbir is also a triangle
  *           filter but with a different support rule, so this is not
  *           bit-identical; it is used only for the auto-screenshot thumbnail,
- *           where that does not matter.
+ *           where that does not matter. The contract matches vanilla
+ *           NativeImage.resizeSubRectTo: source rectangle (srcX, srcY, srcW,
+ *           srcH) is cropped out of src and scaled to the destination image's
+ *           own width and height.
  */
 public class PlatformImage {
 
@@ -597,26 +600,38 @@ public class PlatformImage {
 
 	// ------------------------------------------------------------------ resize
 
-	public static void resize(byte[] dst, int dstX, int dstY, int dstWidth, int dstHeight, int dstStride,
-			byte[] src, int srcWidth, int srcHeight, int components) {
+	// Contract mirrors vanilla NativeImage.resizeSubRectTo: the rectangle
+	// (srcX, srcY, srcW, srcH) is cropped out of the source plane and scaled to
+	// (dstW, dstH) with a separable tent filter. srcStride is the FULL source
+	// row stride; the crop anchors are honoured in both passes. Only the
+	// auto-screenshot thumbnail uses this, so allocation churn is acceptable.
+	public static void resize(byte[] src, int srcX, int srcY, int srcW, int srcH, int srcStride, int components,
+			byte[] dst, int dstW, int dstH) {
 		if (dst == null || src == null || components < 1 || components > 4) {
 			return;
 		}
 
-		if (dstWidth <= 0 || dstHeight <= 0 || srcWidth <= 0 || srcHeight <= 0 || dstStride <= 0) {
+		if (srcW <= 0 || srcH <= 0 || dstW <= 0 || dstH <= 0 || srcX < 0 || srcY < 0) {
 			return;
 		}
 
-		// Horizontal pass first: srcWidth x srcHeight -> dstWidth x srcHeight. That
-		// intermediate is dstWidth*srcHeight*comps, the smaller of the two orderings
-		// whenever the destination is a thumbnail -- the only caller.
-		int midW = dstWidth;
-		int midH = srcHeight;
+		if (srcX + srcW > srcStride / components || srcY + srcH > src.length / srcStride) {
+			// Crop rectangle overruns the source plane - refuse rather than
+			// reading out of bounds (throwing here would kill the IO task that
+			// saves the world thumbnail and make the caller retry forever).
+			return;
+		}
+
+		// Horizontal pass first: srcW x srcH -> dstW x srcH. That intermediate
+		// is dstW*srcH*comps, the smaller of the two orderings whenever the
+		// destination is a thumbnail -- the only caller.
+		int midW = dstW;
+		int midH = srcH;
 		int[] mid = new int[midW * midH * components];
 
-		Weights wx = weights(dstWidth, srcWidth);
+		Weights wx = weights(dstW, srcW);
 		for (int y = 0; y < midH; ++y) {
-			int srcRow = y * srcWidth * components;
+			int srcRow = (srcY + y) * srcStride + srcX * components;
 			int midRow = y * midW * components;
 			for (int x = 0; x < midW; ++x) {
 				int first = wx.start[x];
@@ -624,7 +639,7 @@ public class PlatformImage {
 				for (int c = 0; c < components; ++c) {
 					int acc = 0;
 					for (int k = 0; k < n; ++k) {
-						int si = clamp(first + k, srcWidth);
+						int si = clamp(first + k, srcW);
 						acc += Math.round((src[srcRow + si * components + c] & 255) * wx.val[wx.offset[x] + k]);
 					}
 
@@ -633,14 +648,15 @@ public class PlatformImage {
 			}
 		}
 
-		// Vertical pass: midW x midH -> dstW x dstH, writing into the sub-rectangle
-		// using the destination's real row stride.
-		Weights wy = weights(dstHeight, srcHeight);
-		for (int y = 0; y < dstHeight; ++y) {
+		// Vertical pass: dstW x srcH -> dstW x dstH, into the destination's own
+		// full-image coordinate space (the caller passes a whole-image dst).
+		int dstStride = dstW * components;
+		Weights wy = weights(dstH, srcH);
+		for (int y = 0; y < dstH; ++y) {
 			int first = wy.start[y];
 			int n = wy.count[y];
-			int outRow = (dstY + y) * dstStride;
-			for (int x = 0; x < dstWidth; ++x) {
+			int outRow = y * dstStride;
+			for (int x = 0; x < dstW; ++x) {
 				for (int c = 0; c < components; ++c) {
 					int acc = 0;
 					for (int k = 0; k < n; ++k) {
@@ -649,7 +665,7 @@ public class PlatformImage {
 								* wy.val[wy.offset[y] + k]);
 					}
 
-					dst[outRow + (dstX + x) * components + c] = (byte)Math.min(255, Math.max(0, acc));
+					dst[outRow + x * components + c] = (byte)Math.min(255, Math.max(0, acc));
 				}
 			}
 		}

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EaglercraftX 1.19.4</title>
+<link rel="icon" href="favicon.png">
+<style>
+html, body { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #101014; }
+#_eaglercraftX_game_root { position: relative; width: 100%; height: 100%; }
+canvas { display: block; }
+#eagGate { position: fixed; inset: 0; background: #000; color: #ddd;
+	font: 16px/1.4 monospace; display: flex; align-items: center; justify-content: center;
+	text-align: center; z-index: 999999; user-select: none; cursor: pointer; }
+#eagGate h1 { font-size: 26px; color: #fff; margin: 0 0 18px; }
+#eagGate .go { font-size: 22px; color: #ffff55; margin: 10px 0 4px; }
+#eagGate .hint { font-size: 13px; color: #8b8b8b; margin-top: 26px; max-width: 560px; }
+#eagGate .barWrap { width: 420px; height: 26px; border: 2px solid #808080; margin: 14px auto 0; background: #101010; }
+#eagGate .bar { height: 100%; width: 0%; background: #00aa00; }
+#eagGate .pct { margin-top: 8px; font-size: 13px; color: #a0a0a0; }
+</style>
+</head>
+<body><div id="_eaglercraftX_game_root"></div>
+<script>
+"use strict";
+(function() {
+	const GATE_HTML = '<div><h1>EaglercraftX 1.19.4</h1>' +
+		'<div class="go">Click to play</div>' +
+		'<div class="hint">Your browser only allows audio after a click. The client is ~215 MB and downloads once, then it is cached by the browser.</div></div>';
+
+	let phase = "waiting";
+	let mainFunc = null;
+	let wasmModule = null;
+	let runtimeUrl = null;
+	const epkFiles = [];
+
+	const gate = document.createElement("div");
+	gate.id = "eagGate";
+	gate.innerHTML = GATE_HTML;
+	document.body.appendChild(gate);
+	gate.addEventListener("click", start);
+
+	window.eagWebOpts = { "localStorageNamespace": "_eaglercraftX_wasm_web" };
+
+	window.__eaglercraftXLoaderContext = {
+		"getEaglercraftXOpts": function() { return window.eagWebOpts; },
+		"getEagRuntimeJSURL": function() { return runtimeUrl; },
+		"getClassesWASMURL": function() { return wasmModule; },
+		"getClassesDeobfWASMURL": function() { return null; },
+		"getClassesTEADBGURL": function() { return null; },
+		"getEPKFiles": function() { return epkFiles; },
+		"getRootElement": function() { return document.getElementById("_eaglercraftX_game_root"); },
+		"getMainArgs": function() { return []; },
+		"getImageURL": function(idx) {
+			switch (idx) {
+				case 0: return "splash.png";
+				case 1: return "pressAnyKey.png";
+				case 2: return "crash.png";
+				case 3: return "favicon.png";
+				default: return null;
+			}
+		},
+		"runMain": function(fn) { mainFunc = fn; }
+	};
+
+	function setStatus(text, pct) {
+		const el = document.querySelector("#eagGate .go");
+		if (el) el.textContent = text;
+		if (pct === undefined) return;
+		let ui = document.querySelector("#eagGate .loadingUI");
+		if (!ui) {
+			ui = document.createElement("div");
+			ui.className = "loadingUI";
+			ui.innerHTML = '<div class="barWrap"><div class="bar"></div></div><div class="pct"></div>';
+			gate.querySelector("div").appendChild(ui);
+		}
+		ui.querySelector(".bar").style.width = Math.round(pct * 100) + "%";
+		ui.querySelector(".pct").textContent = Math.round(pct * 100) + "% of " + Math.round(totalBytes / 1048576) + " MB";
+	}
+
+	let totalBytes = 0;
+	let doneBytes = 0;
+
+	async function fetchPart(url) {
+		const resp = await fetch(url);
+		if (!resp.ok) throw new Error("HTTP " + resp.status + " for " + url);
+		return new Uint8Array(await resp.arrayBuffer());
+	}
+
+	async function loadAsset(entry) {
+		const parts = [];
+		for (let i = 0; i < entry.parts; ++i) {
+			parts.push(await fetchPart("data/" + entry.name + "." + String(i).padStart(2, "0")));
+		}
+		doneBytes += entry.size;
+		setStatus("Loading " + entry.name + "...", Math.min(0.98, doneBytes / totalBytes));
+		const merged = new Uint8Array(entry.size);
+		let off = 0;
+		for (const p of parts) {
+			merged.set(p, off);
+			off += p.length;
+		}
+		return merged;
+	}
+
+	async function start() {
+		if (phase !== "waiting") return;
+		phase = "loading";
+		try {
+			const manifest = await (await fetch("manifest.json")).json();
+			totalBytes = manifest.reduce((a, e) => a + e.size, 0);
+			const runtimeText = await (await fetch("eagruntime.js")).text();
+			runtimeUrl = URL.createObjectURL(new Blob([runtimeText], { type: "text/javascript" }));
+
+			let wasmBytes = null;
+			for (const entry of manifest) {
+				if (entry.name === "classes.wasm") {
+					wasmBytes = await loadAsset(entry);
+				} else {
+					epkFiles.push({ "name": entry.name, "path": "", "data": await loadAsset(entry) });
+				}
+			}
+
+			setStatus("Compiling...", 0.99);
+			await new Promise(function(r) { setTimeout(r, 0); });
+			try {
+				wasmModule = await WebAssembly.compile(wasmBytes, { "builtins": ["js-string"] });
+			} catch (e) {
+				wasmModule = await WebAssembly.compile(wasmBytes);
+			}
+
+			gate.remove();
+			phase = "running";
+			const fn = mainFunc;
+			mainFunc = null;
+			fn();
+		} catch (e) {
+			phase = "error";
+			console.error("boot failed", e);
+			const go = document.querySelector("#eagGate .go");
+			if (go) {
+				go.textContent = "Failed to start: " + (e && e.message ? e.message : e);
+				go.style.color = "#ff5555";
+			}
+		}
+	}
+
+	if (typeof WebAssembly.promising !== "function" || typeof WebAssembly.Suspending !== "function") {
+		const go = document.querySelector("#eagGate .go");
+		go.textContent = "This build needs JSPI - use Chrome/Edge 137+";
+		go.style.color = "#ff5555";
+		return;
+	}
+
+	const s = document.createElement("script");
+	s.src = "eagruntime.js";
+	s.onload = function() {
+		// eagruntime.js calls back into runMain() once the loader context exists.
+		if (!mainFunc) console.warn("runtime loaded without calling runMain");
+	};
+	document.body.appendChild(s);
+})();
+</script>
+</body>
+</html>

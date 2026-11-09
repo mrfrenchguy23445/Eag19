@@ -225,3 +225,42 @@ Phases A+B+C-scoped+D-cherry-picks all land in ONE build:
   Nov 8: world generated end-to-end, "chunks/s 52-69", zero console errors.
 - EditProfileScreen is the first-boot screen (no panorama by design; the
   panorama renders on the TitleScreen after confirming the profile).
+
+## Sounds + click gate + first FPS pass (Nov 9)
+
+- Sounds: the vanilla client.jar ships ZERO audio for 1.19.4; all sound files
+  live in Mojang's separate asset index (id=3,
+  piston-meta.../2d1c3dd61f7bae3831fa847c41ad4f559fc04ede/3.json, 3412 sound
+  objects ~466MB). `scripts/make-sounds-epk.mjs` downloads by content hash
+  (cached in target_teavm_wasm_gc/sounds-cache) and packs a subset into
+  `javascript/sounds.epk` (93.6MB, crcBad=0): all mob/block/item/entity/ui
+  gameplay sounds + music/menu (title) + music/game/creative, i.e. everything
+  except ambient/records/background-music by user choice (--omit/--add args
+  can retune). Mounted by the JS loader at boot (works: "Sound engine
+  started"-era boot had ZERO "Missing sound for event" warnings).
+- Click gate: dev index.html boot is now held behind an Eagler-style
+  "Click to enable sounds!" screen (browser autoplay policy needs a user
+  gesture before the AudioContext; same flow as the official offline
+  launch_countdown_screen). First click starts the sounds.epk download with a
+  progress bar (~19s local); a second click launches without sounds.
+- The dev-only preserveDrawingBuffer pixel-sampling shim now applies only with
+  ?keepPixels=1 (it forces a backbuffer copy per frame otherwise).
+- FPS pass (Nov 9): deobfuscated Chrome CPU profile via new
+  `scripts/profile-deobfuscate.py` (.cpuprofile wasm frame columnNumber = byte
+  offset in classes.wasm; teadbg line-table maps it to the Java method).
+  Standing in-world measurements: ~54 fps @60Hz, main thread ~48% busy
+  (~24ms/frame during the sampled window which included tail-of-worldload);
+  GC only ~2.4%. Top wasm hotspot was PlatformImage.resize (741ms/self) +
+  NativeImage get/setPixelRGBA + downloadTexture + texSubImage2D.
+- ROOT CAUSE found + fixed: the takeAutoScreenshot world-thumbnail loop called
+  NativeImage.resizeSubRectTo -> PlatformImage.resize with mismatched
+  parameter semantics (caller = vanilla crop-to-dest-size contract, callee
+  treated the crop size as the destination size and had no crop anchors), so
+  it threw ArrayIndexOutOfBoundsException EVERY SECOND, never wrote the file,
+  and retried forever: full framebuffer readback + 886x886 tent-filter
+  attempt + IO-task exception + GC storm, every 1s, for the whole session.
+  Fixed by giving PlatformImage.resize the vanilla crop contract
+  (src/srcX/srcY/srcW/srcH/srcStride/comps/dst/dstW/dstH) with crop support +
+  an overrun guard, updating NativeImage.resizeSubRectTo and the
+  src/platform-api native declaration to the same signature. Needs the
+  generateWasmGC rebuild to take effect.

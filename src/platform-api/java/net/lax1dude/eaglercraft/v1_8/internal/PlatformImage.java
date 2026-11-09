@@ -63,24 +63,25 @@ public class PlatformImage {
 	public static native byte[] encodePng(byte[] pixels, int width, int height, int components);
 
 	/**
-	 * Resamples all of src into a sub-rectangle of dst. Stands in for
-	 * STBImageResize.nstbir_resize_uint8.
+	 * Crops the source rectangle (srcX, srcY, srcW, srcH) out of src and resamples
+	 * it to the destination image's own width and height. Stands in for
+	 * STBImageResize.nstbir_resize_uint8. Matches the vanilla
+	 * NativeImage.resizeSubRectTo contract, which the auto-screenshot thumbnail
+	 * uses.
 	 *
-	 * <p>dstStride is separate from dstWidth because the sub-rectangle need not span
-	 * the destination image: NativeImage.resizeSubRectTo passes a full-image row
-	 * stride with a smaller sub-rectangle width, which is how the auto-screenshot
-	 * thumbnail centres itself inside the 64x64 destination.
-	 *
-	 * @param dst        destination buffer.
-	 * @param dstX       left edge of the destination sub-rectangle.
-	 * @param dstY       top edge of the destination sub-rectangle.
-	 * @param dstWidth   width of the destination sub-rectangle.
-	 * @param dstHeight  height of the destination sub-rectangle.
-	 * @param dstStride  bytes per row of dst, i.e. the full destination width times
-	 *                   components -- not dstWidth.
-	 * @param src        source buffer, srcWidth * srcHeight * components bytes.
+	 * @param src        source buffer; srcX + srcW rows of srcStride bytes, the
+	 *                   full source width times components.
+	 * @param srcX       left edge of the source rectangle.
+	 * @param srcY       top edge of the source rectangle.
+	 * @param srcW       width of the source rectangle.
+	 * @param srcH       height of the source rectangle.
+	 * @param srcStride  bytes per row of src, i.e. the full source width times
+	 *                   components -- not srcW.
 	 * @param components 1, 2, 3 or 4, matching on both sides.
+	 * @param dst        destination buffer, dstW * dstH * components bytes.
+	 * @param dstW       destination width.
+	 * @param dstH       destination height.
 	 */
-	public static native void resize(byte[] dst, int dstX, int dstY, int dstWidth, int dstHeight, int dstStride,
-			byte[] src, int srcWidth, int srcHeight, int components);
+	public static native void resize(byte[] src, int srcX, int srcY, int srcW, int srcH, int srcStride, int components,
+			byte[] dst, int dstW, int dstH);
 }

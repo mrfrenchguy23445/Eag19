@@ -628,9 +628,11 @@ public final class NativeImage implements AutoCloseable {
       }
 
       int var6 = this.format.components();
+      // Vanilla contract: crop (param0, param1, param2, param3) out of this image
+      // and scale it into param4's own dimensions (e.g. the 64x64 world icon).
       PlatformImage.resize(
-         param4.pixels, param0, param1, param2, param3, param4.getWidth() * var6,
-         this.pixels, this.getWidth(), this.getHeight(), var6
+         this.pixels, param0, param1, param2, param3, this.getWidth() * var6, var6,
+         param4.pixels, param4.getWidth(), param4.getHeight()
       );
    }
 
