@@ -97,8 +97,8 @@ public class PlatformInput {
 
 	private static int mouseX = 0;
 	private static int mouseY = 0;
-	private static float mouseDX = 0.0f;
-	private static float mouseDY = 0.0f;
+	private static double mouseDX = 0.0D;
+	private static double mouseDY = 0.0D;
 	private static float mouseDWheel = 0.0f;
 	private static boolean enableRepeatEvents = true;
 	private static boolean isWindowFocused = true;
@@ -959,13 +959,13 @@ public class PlatformInput {
 
 	public static int mouseGetDX() {
 		int ret = (int)mouseDX;
-		mouseDX = 0.0f;
+		mouseDX -= ret;
 		return ret;
 	}
 
 	public static int mouseGetDY() {
 		int ret = (int)mouseDY;
-		mouseDY = 0.0f;
+		mouseDY -= ret;
 		return ret;
 	}
 
