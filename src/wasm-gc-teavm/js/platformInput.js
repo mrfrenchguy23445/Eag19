@@ -80,6 +80,7 @@ async function initPlatformInput(inputImports) {
 
 	var pointerLockSupported = false;
 	var pointerLockFlag = false;
+	var pointerLockDesired = false;
 	var pointerLockWaiting = false;
 	var mouseUngrabTimer = 0;
 	var mouseGrabTimer = 0;
@@ -231,7 +232,7 @@ async function initPlatformInput(inputImports) {
 	canvasElement.addEventListener("mousedown", /** @type {function(Event)} */ (currentEventListeners.mousedown = function(/** MouseEvent */ evt) {
 		evt.preventDefault();
 		evt.stopPropagation();
-		if(pointerLockSupported && pointerLockFlag && document.pointerLockElement !== canvasElement) {
+		if(pointerLockSupported && pointerLockDesired && document.pointerLockElement !== canvasElement) {
 			mouseSetGrabbed(1);
 			return;
 		}
@@ -416,19 +417,28 @@ async function initPlatformInput(inputImports) {
 
 	if(pointerLockSupported) {
 		document.addEventListener("pointerlockchange", /** @type {function(Event)} */ (currentEventListeners.pointerlock = function(evt) {
-			window.setTimeout(function() {
-				const grab = (document.pointerLockElement === canvasElement);
-				if(!grab) {
-					if(pointerLockFlag) {
-						mouseUngrabTimer = performance.now() | 0;
-					}
+			const grab = (document.pointerLockElement === canvasElement);
+			if(grab && !pointerLockDesired) {
+				try {
+					document.exitPointerLock();
+				}catch(ex) {
 				}
-				pointerLockFlag = grab;
-			}, 60);
+				pointerLockFlag = false;
+				pointerLockWaiting = false;
+				return;
+			}
+			if(!grab && pointerLockFlag) {
+				mouseUngrabTimer = performance.now() | 0;
+			}
+			pointerLockFlag = grab;
 			pointerLockWaiting = false;
+			if(!grab) {
+				pointerLockDesired = false;
+			}
 		}));
 		document.addEventListener("pointerlockerror", /** @type {function(Event)} */ (currentEventListeners.pointerlockerr = function(evt) {
 			pointerLockWaiting = false;
+			pointerLockFlag = document.pointerLockElement === canvasElement;
 		}));
 	}else {
 		eagError("Pointer lock is not supported on this browser");
@@ -663,33 +673,54 @@ async function initPlatformInput(inputImports) {
 	 */
 	function mouseSetGrabbed(grab) {
 		if(!pointerLockSupported) return;
-		pointerLockFlag = !!grab;
+		pointerLockDesired = !!grab;
 		const t = performance.now() | 0;
 		mouseGrabTimer = t;
 		if(grab) {
+			if(document.pointerLockElement === canvasElement) {
+				pointerLockFlag = true;
+				return;
+			}
 			pointerLockWaiting = true;
 			try {
-				canvasElement.requestPointerLock();
+				const request = canvasElement.requestPointerLock();
+				if(request && typeof request.catch === "function") {
+					request.catch(function() {
+						pointerLockWaiting = false;
+						pointerLockFlag = document.pointerLockElement === canvasElement;
+					});
+				}
 			}catch(ex) {
+				pointerLockWaiting = false;
+				pointerLockFlag = document.pointerLockElement === canvasElement;
 			}
 			if(mouseUngrabTimeout !== -1) window.clearTimeout(mouseUngrabTimeout);
 			mouseUngrabTimeout = -1;
 			if(t - mouseUngrabTimer < 3000) {
 				mouseUngrabTimeout = window.setTimeout(function() {
+					if(!pointerLockDesired || document.pointerLockElement === canvasElement) return;
 					try {
-						canvasElement.requestPointerLock();
+						const request = canvasElement.requestPointerLock();
+						if(request && typeof request.catch === "function") {
+							request.catch(function() {
+								pointerLockWaiting = false;
+								pointerLockFlag = document.pointerLockElement === canvasElement;
+							});
+						}
 					}catch(ex) {
+						pointerLockWaiting = false;
+						pointerLockFlag = document.pointerLockElement === canvasElement;
 					}
 				}, 3100 - (t - mouseUngrabTimer));
 			}
 		}else {
+			pointerLockFlag = false;
+			pointerLockWaiting = false;
 			if(mouseUngrabTimeout !== -1) window.clearTimeout(mouseUngrabTimeout);
 			mouseUngrabTimeout = -1;
-			if(!pointerLockWaiting) {
-				try {
-					document.exitPointerLock();
-				}catch(ex) {
-				}
+			try {
+				if(document.pointerLockElement === canvasElement) document.exitPointerLock();
+			}catch(ex) {
 			}
 		}
 	};

@@ -2210,27 +2210,22 @@ public class LevelRenderer implements ResourceManagerReloadListener, AutoCloseab
       RenderRegionCache var2 = new RenderRegionCache();
       BlockPos var3 = param0.getBlockPosition();
       List<ChunkRenderDispatcher.RenderChunk> var4 = Lists.newArrayList();
+      List<ChunkRenderDispatcher.RenderChunk> var5 = Lists.newArrayList();
+      PrioritizeChunkUpdates var6 = this.minecraft.options.prioritizeChunkUpdates().get();
 
-      for (LevelRenderer.RenderChunkInfo var6 : this.renderChunksInFrustum) {
-         ChunkRenderDispatcher.RenderChunk var7 = var6.chunk;
-         ChunkPos var8 = new ChunkPos(var7.getOrigin());
-         if (var7.isDirty() && this.level.getChunk(var8.x, var8.z).isClientLightReady()) {
-            boolean var9 = false;
-            if (this.minecraft.options.prioritizeChunkUpdates().get() == PrioritizeChunkUpdates.NEARBY) {
-               BlockPos var10 = var7.getOrigin().offset(8, 8, 8);
-               var9 = var10.distSqr(var3) < 768.0 || var7.isDirtyFromPlayer();
-            } else if (this.minecraft.options.prioritizeChunkUpdates().get() == PrioritizeChunkUpdates.PLAYER_AFFECTED) {
-               var9 = var7.isDirtyFromPlayer();
+      for (LevelRenderer.RenderChunkInfo var7 : this.renderChunksInFrustum) {
+         ChunkRenderDispatcher.RenderChunk var8 = var7.chunk;
+         ChunkPos var9 = new ChunkPos(var8.getOrigin());
+         if (var8.isDirty() && this.level.getChunk(var9.x, var9.z).isClientLightReady()) {
+            boolean var10 = false;
+            if (var6 == PrioritizeChunkUpdates.NEARBY) {
+               BlockPos var11 = var8.getOrigin().offset(8, 8, 8);
+               var10 = var11.distSqr(var3) < 768.0 || var8.isDirtyFromPlayer();
+            } else if (var6 == PrioritizeChunkUpdates.PLAYER_AFFECTED) {
+               var10 = var8.isDirtyFromPlayer();
             }
 
-            if (var9) {
-               this.minecraft.getProfiler().push("build_near_sync");
-               this.chunkRenderDispatcher.rebuildChunkSync(var7, var2);
-               var7.setNotDirty();
-               this.minecraft.getProfiler().pop();
-            } else {
-               var4.add(var7);
-            }
+            (var10 ? var4 : var5).add(var8);
          }
       }
 
@@ -2238,9 +2233,14 @@ public class LevelRenderer implements ResourceManagerReloadListener, AutoCloseab
       this.chunkRenderDispatcher.uploadAllPendingUploads();
       this.minecraft.getProfiler().popPush("schedule_async_compile");
 
-      for (ChunkRenderDispatcher.RenderChunk var6 : var4) {
-         var6.rebuildChunkAsync(this.chunkRenderDispatcher, var2);
-         var6.setNotDirty();
+      for (ChunkRenderDispatcher.RenderChunk var7 : var4) {
+         var7.rebuildChunkAsync(this.chunkRenderDispatcher, var2);
+         var7.setNotDirty();
+      }
+
+      for (ChunkRenderDispatcher.RenderChunk var7 : var5) {
+         var7.rebuildChunkAsync(this.chunkRenderDispatcher, var2);
+         var7.setNotDirty();
       }
 
       this.minecraft.getProfiler().pop();
