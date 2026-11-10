@@ -2,6 +2,7 @@ package org.teavm.classlib.java.util.concurrent;
 
 import java.util.concurrent.*;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -83,6 +84,33 @@ public class TCompletableFuture<T> implements TFuture<T>, TCompletionStage<T> {
     * {@code CompletableFuture.completedFuture(null)} is used in this codebase.
     */
    private static final Object PENDING = new Object();
+
+   /**
+    * Continuations are synchronous on this target, but running each nested completion
+    * directly recurses through the JavaScript/WASM stack. Queue nested dispatches and
+    * drain them iteratively so completion remains synchronous at the outermost call.
+    */
+   private static final ArrayDeque<Runnable> COMPLETION_QUEUE = new ArrayDeque<>();
+   private static boolean drainingCompletions;
+
+   private static void dispatch(Runnable action) {
+      COMPLETION_QUEUE.addLast(action);
+      if (drainingCompletions) {
+         return;
+      }
+
+      drainingCompletions = true;
+      try {
+         while (!COMPLETION_QUEUE.isEmpty()) {
+            COMPLETION_QUEUE.removeFirst().run();
+         }
+      } finally {
+         drainingCompletions = false;
+         if (!COMPLETION_QUEUE.isEmpty()) {
+            COMPLETION_QUEUE.clear();
+         }
+      }
+   }
 
    /**
     * The result, an {@link AltResult} for a failure, or {@link #PENDING}.
@@ -179,7 +207,7 @@ public class TCompletableFuture<T> implements TFuture<T>, TCompletionStage<T> {
          TCompletableFuture target = dep.target;
          @SuppressWarnings({"unchecked", "rawtypes"})
          Cont action = dep.action;
-         action.run(target, v, ex);
+         dispatch(() -> action.run(target, v, ex));
       }
    }
 
@@ -198,9 +226,9 @@ public class TCompletableFuture<T> implements TFuture<T>, TCompletionStage<T> {
       }
 
       if (r instanceof AltResult) {
-         action.run(derived, null, ((AltResult)r).ex);
+         dispatch(() -> action.run(derived, null, ((AltResult)r).ex));
       } else {
-         action.run(derived, r, null);
+         dispatch(() -> action.run(derived, r, null));
       }
 
       return derived;
