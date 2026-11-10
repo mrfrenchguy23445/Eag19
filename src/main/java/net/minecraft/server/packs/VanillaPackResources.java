@@ -71,29 +71,18 @@ public class VanillaPackResources implements PackResources {
    public void listResources(PackType param0, String param1, String param2, PackResources.ResourceOutput param3) {
       FileUtil.decomposePath(param2).get().ifLeft(l_param3 -> {
          List<Path> l_var5 = this.pathsForType.get(param0);
-         int l_var6 = l_var5.size();
-         if (l_var6 == 0) {
-            // PORT NOTE (Eag19 / TeaVM WASM-GC): no filesystem roots were mounted (the
-            // browser client has no asset directory at all - see VanillaPackResourcesBuilder
-            // and the ROOT_DIR_BY_TYPE note). Serve the listing out of assets.epk instead.
-            listEpkResources(param0, param1, param2, param3);
-         } else if (l_var6 == 1) {
-            getResources(param3, param1, l_var5.get(0), (List<String>)l_param3);
-         } else if (l_var6 > 1) {
-            Map<ResourceLocation, IoSupplier<InputStream>> l_var7 = new HashMap<>();
+         Map<ResourceLocation, IoSupplier<InputStream>> l_var6 = new HashMap<>();
 
-            for (int l_var8 = 0; l_var8 < l_var6 - 1; l_var8++) {
-               getResources(l_var7::putIfAbsent, param1, l_var5.get(l_var8), (List<String>)l_param3);
-            }
-
-            Path l_var8 = l_var5.get(l_var6 - 1);
-            if (l_var7.isEmpty()) {
-               getResources(param3, param1, l_var8, (List<String>)l_param3);
-            } else {
-               getResources(l_var7::putIfAbsent, param1, l_var8, (List<String>)l_param3);
-               l_var7.forEach(param3);
-            }
+         for (Path l_var8 : l_var5) {
+            getResources(l_var6::putIfAbsent, param1, l_var8, (List<String>)l_param3);
          }
+
+         // Eag19: filesystem roots can contain only part of the vanilla assets. Always
+         // merge the EPK listing as the fallback layer, matching getResource() below.
+         // Without this, a single existing asset root suppresses EPK directory listings,
+         // so atlas definitions/sprites present only in assets.epk silently disappear.
+         listEpkResources(param0, param1, param2, l_var6::putIfAbsent);
+         l_var6.forEach(param3);
       }).ifRight(l_param1 -> LOGGER.error("Invalid path {}: {}", param2, l_param1.message()));
    }
 
