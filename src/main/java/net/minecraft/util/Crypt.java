@@ -12,7 +12,6 @@ import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.security.SecureRandom;
 import java.security.spec.EncodedKeySpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
@@ -231,10 +230,19 @@ public class Crypt {
    }
 
    public static class SaltSupplier {
-      private static final SecureRandom secureRandom = new SecureRandom();
+      // NOT java.security.SecureRandom: TeaVM's wasm-gc class library resolves
+      // SecureRandom.next(bits) to TSecureRandom.next, which calls nextBytes(). That
+      // override only uses window.crypto when PlatformDetector.isJavaScript() is true,
+      // and the wasm-gc backend compiles that test to a constant false, so it falls
+      // back to java.util.Random.nextBytes -> next(8) -> TSecureRandom.next -> ...
+      // An unbounded two-frame recursion that kills the game with "RangeError: Maximum
+      // call stack size exceeded" the first time a chat message is sent (the salt below).
+      // The salt only needs to differ per message -- no signing happens in this client
+      // (SignedMessageChain.Encoder.UNSIGNED) -- so a plain PRNG is sufficient.
+      private static final java.util.Random random = new java.util.Random();
 
       public static long getLong() {
-         return secureRandom.nextLong();
+         return random.nextLong();
       }
    }
 

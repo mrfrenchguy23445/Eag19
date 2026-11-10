@@ -86,6 +86,96 @@ async function initPlatformInput(inputImports) {
 	var mouseGrabTimer = 0;
 	var mouseUngrabTimeout = -1;
 
+	/*
+	 * Pointer lock hardening / fallback.
+	 *
+	 * Some embedding contexts (iframe with a null or cross-origin document, certain
+	 * automation/OSR browsers, some kiosk builds) refuse pointer lock outright with
+	 * WrongDocumentError / SecurityError no matter how many user gestures precede it.
+	 * The old code kept pointerLockDesired=true forever and re-requested on every
+	 * canvas mousedown, so the console filled with one exception per click and the
+	 * game never considered the mouse grabbed (no looking around at all).
+	 *
+	 * This tracks capability and failures so that:
+	 *   - a "fatal" refusal (wrong document / security / unsupported) is latched,
+	 *     logged exactly once, and never retried;
+	 *   - a transient failure backs off exponentially instead of hammering;
+	 *   - when pointer lock is unavailable we fall back to a *virtual grab*: the
+	 *     game is told the mouse is grabbed and mousemove is re-originated as a
+	 *     synthetic cursor that only moves by the browser's relative deltas, which
+	 *     is exactly the shape MouseHandler expects while grabbed.
+	 */
+	var pointerLockAvailable = true;
+	var pointerLockFailures = 0;
+	var pointerLockBlockedUntil = 0;
+	var pointerLockReported = false;
+	var virtualGrabActive = false;
+	var virtualMouseX = 0.0;
+	var virtualMouseY = 0.0;
+
+	function reportPointerLockUnavailable(reason) {
+		if(pointerLockReported) return;
+		pointerLockReported = true;
+		eagWarn("Pointer lock unavailable ({}); falling back to virtual mouse grab", reason);
+	}
+
+	function virtualGrabCentre() {
+		const w = canvasElement.clientWidth || canvasElement.width || 1;
+		const h = canvasElement.clientHeight || canvasElement.height || 1;
+		// MouseHandler recentres its own xpos/ypos on grab; start our synthetic
+		// cursor at the middle so the first delta stays small.
+		virtualMouseX = w * 0.5;
+		virtualMouseY = h * 0.5;
+	}
+
+	function activateVirtualGrab() {
+		virtualGrabActive = true;
+		pointerLockWaiting = false;
+		pointerLockFlag = pointerLockDesired;
+		virtualGrabCentre();
+		try {
+			canvasElement.style.cursor = pointerLockDesired ? "none" : "";
+		}catch(ex) {
+		}
+	}
+
+	function deactivateVirtualGrab() {
+		if(!virtualGrabActive) return;
+		virtualGrabActive = false;
+		pointerLockFlag = (document.pointerLockElement === canvasElement);
+		try {
+			canvasElement.style.cursor = "";
+		}catch(ex) {
+		}
+	}
+
+	function notePointerLockFailure(reason) {
+		reason = reason || "unknown";
+		pointerLockWaiting = false;
+		pointerLockFlag = (document.pointerLockElement === canvasElement);
+		// These are not "the user has not clicked recently yet" - the browser has
+		// decided this element/document can never be locked. Retrying is pointless.
+		if(/WrongDocument|SecurityError|NotSupported|NotAllowedError|ReadOnly/i.test(reason)) {
+			pointerLockAvailable = false;
+			reportPointerLockUnavailable(reason);
+			if(pointerLockDesired) activateVirtualGrab();
+			return;
+		}
+		pointerLockFailures++;
+		const backoff = Math.min(4000, 250 * Math.pow(2, Math.min(pointerLockFailures - 1, 4)));
+		pointerLockBlockedUntil = (performance.now() | 0) + backoff;
+		if(pointerLockFailures >= 3) {
+			reportPointerLockUnavailable(reason);
+			pointerLockAvailable = false;
+			if(pointerLockDesired) activateVirtualGrab();
+		}
+	}
+
+	function canAttemptPointerLock() {
+		return pointerLockAvailable && !pointerLockWaiting
+			&& (performance.now() | 0) >= pointerLockBlockedUntil;
+	}
+
 	var fullscreenSupported = false;
 	var fullscreenQuery = null;
 	var keyboardLockSupported = false;
@@ -432,13 +522,16 @@ async function initPlatformInput(inputImports) {
 			}
 			pointerLockFlag = grab;
 			pointerLockWaiting = false;
-			if(!grab) {
+			if(grab) {
+				deactivateVirtualGrab();
+				pointerLockFlag = true;
+			}else {
+				deactivateVirtualGrab();
 				pointerLockDesired = false;
 			}
 		}));
 		document.addEventListener("pointerlockerror", /** @type {function(Event)} */ (currentEventListeners.pointerlockerr = function(evt) {
-			pointerLockWaiting = false;
-			pointerLockFlag = document.pointerLockElement === canvasElement;
+			notePointerLockFailure("pointerlockerror");
 		}));
 	}else {
 		eagError("Pointer lock is not supported on this browser");
@@ -673,49 +766,77 @@ async function initPlatformInput(inputImports) {
 	 */
 	function mouseSetGrabbed(grab) {
 		if(!pointerLockSupported) return;
+		const wasDesired = pointerLockDesired;
 		pointerLockDesired = !!grab;
 		const t = performance.now() | 0;
 		mouseGrabTimer = t;
 		if(grab) {
 			if(document.pointerLockElement === canvasElement) {
 				pointerLockFlag = true;
+				pointerLockWaiting = false;
+				deactivateVirtualGrab();
+				pointerLockFlag = true;
+				return;
+			}
+			if(!pointerLockAvailable || virtualGrabActive) {
+				// No real pointer lock on this browser/embedding: grab virtually so
+				// the game still receives look deltas instead of sitting ungrabbed.
+				if(!pointerLockAvailable && !pointerLockReported) reportPointerLockUnavailable("unavailable");
+				activateVirtualGrab();
+				return;
+			}
+			if(wasDesired && pointerLockWaiting) {
+				// A request is already in flight; do not stack another one.
+				return;
+			}
+			if(!canAttemptPointerLock()) {
+				// Still backing off after a transient refusal. Keep the game's
+				// "wants grab" state but do not throw another exception.
 				return;
 			}
 			pointerLockWaiting = true;
 			try {
 				const request = canvasElement.requestPointerLock();
-				if(request && typeof request.catch === "function") {
-					request.catch(function() {
+				if(request && typeof request.then === "function") {
+					request.then(function() {
 						pointerLockWaiting = false;
-						pointerLockFlag = document.pointerLockElement === canvasElement;
+						pointerLockFlag = (document.pointerLockElement === canvasElement);
+						if(pointerLockFlag) deactivateVirtualGrab();
+					}, function(err) {
+						notePointerLockFailure(err && err.name ? err.name : String(err));
 					});
 				}
 			}catch(ex) {
-				pointerLockWaiting = false;
-				pointerLockFlag = document.pointerLockElement === canvasElement;
+				notePointerLockFailure(ex && ex.name ? ex.name : String(ex));
 			}
 			if(mouseUngrabTimeout !== -1) window.clearTimeout(mouseUngrabTimeout);
 			mouseUngrabTimeout = -1;
-			if(t - mouseUngrabTimer < 3000) {
+			if(pointerLockAvailable && t - mouseUngrabTimer < 3000) {
 				mouseUngrabTimeout = window.setTimeout(function() {
+					mouseUngrabTimeout = -1;
 					if(!pointerLockDesired || document.pointerLockElement === canvasElement) return;
+					if(!canAttemptPointerLock()) return;
+					pointerLockWaiting = true;
 					try {
 						const request = canvasElement.requestPointerLock();
-						if(request && typeof request.catch === "function") {
-							request.catch(function() {
+						if(request && typeof request.then === "function") {
+							request.then(function() {
 								pointerLockWaiting = false;
-								pointerLockFlag = document.pointerLockElement === canvasElement;
+								pointerLockFlag = (document.pointerLockElement === canvasElement);
+								if(pointerLockFlag) deactivateVirtualGrab();
+							}, function(err) {
+								notePointerLockFailure(err && err.name ? err.name : String(err));
 							});
 						}
 					}catch(ex) {
-						pointerLockWaiting = false;
-						pointerLockFlag = document.pointerLockElement === canvasElement;
+						notePointerLockFailure(ex && ex.name ? ex.name : String(ex));
 					}
 				}, 3100 - (t - mouseUngrabTimer));
 			}
 		}else {
 			pointerLockFlag = false;
 			pointerLockWaiting = false;
+			deactivateVirtualGrab();
 			if(mouseUngrabTimeout !== -1) window.clearTimeout(mouseUngrabTimeout);
 			mouseUngrabTimeout = -1;
 			try {

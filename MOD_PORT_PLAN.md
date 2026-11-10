@@ -264,3 +264,36 @@ Phases A+B+C-scoped+D-cherry-picks all land in ONE build:
   an overrun guard, updating NativeImage.resizeSubRectTo and the
   src/platform-api native declaration to the same signature. Needs the
   generateWasmGC rebuild to take effect.
+
+## Chat crash: SecureRandom recursion (Nov 10)
+
+Report: sending any chat message dies with
+`RangeError: Maximum call stack size exceeded` (Linux/Brave log, `jpm6w51.txt`),
+stack is two wasm functions alternating:
+`SecureRandom.next` <-> `java.util.Random.nextBytes`.
+
+Decoded with `scripts/decode-teadbg.py` (the log's pc offsets land inside those two
+sequences, and their pc at `SecureRandom.next` entry is start+1, i.e. the TeaVM
+stack-overflow check at method entry).
+
+Root cause is in the TeaVM classlib, not in Minecraft:
+- `TSecureRandom.next(bits)` -> `nextBytes(new byte[n])`.
+- `TSecureRandom.nextBytes` only uses `window.crypto` when
+  `PlatformDetector.isJavaScript()` is true. The wasm-gc backend compiles that to
+  constant **false**, so it calls `super.nextBytes` = `java.util.Random.nextBytes`,
+  whose loop calls virtual `next(8)` -> `TSecureRandom.next` -> `nextBytes` -> ...
+  Unbounded 2-frame recursion.
+- Confirmed in the artifact: `getRandomValues` does not appear anywhere in
+  classes.wasm strings (dead branch pruned), while `randomUUID` does.
+- `TUUID.randomUUID()` has the same `isJavaScript()` guard but falls back to a
+  string-based generator, so it is safe. `TSecureRandom` and `TUUID` are the only
+  classlib classes touching `jso/crypto/Crypto`.
+
+Trigger: 1.19.4 `ClientPacketListener.sendChat/sendCommand` call
+`Crypt.SaltSupplier.getLong()` (chat signing salt) before sending. The encoder is
+`SignedMessageChain.Encoder.UNSIGNED`, so no crypto is actually performed -- the
+salt just has to differ per message.
+
+Fix: `Crypt.SaltSupplier` now uses `java.util.Random` (TeaVM `TRandom`, backed by
+`Math.random()`), and the unused `java.security.SecureRandom` import was dropped.
+Rule going forward: never use `java.security.SecureRandom` in this target.
