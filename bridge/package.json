@@ -4,7 +4,7 @@
   "description": "A tiny WebSocket → TCP bridge that lets the Eaglercraft client join a normal Minecraft server. It speaks the Eagler v5 handshake on the WebSocket side and vanilla 1.19.4 (protocol 762) on the TCP side.",
   "main": "eagler-bridge.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node test/eagler-bridge.test.cjs"
   },
   "keywords": [],
   "type": "commonjs",

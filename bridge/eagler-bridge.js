@@ -33,6 +33,44 @@ const GAME_PROTO = 762; // 1.19.4
 const MSG_ONLINE_MODE = 'Server requires Mojang login (offline-mode only)';
 const MAX_FRAME = 8388608;
 
+/** MOTD payload expected by the Eaglercraft server-list query. */
+function motdDocument(name) {
+  return JSON.stringify({
+    type: 'motd',
+    vers: 'EaglerBridge/1.0',
+    brand: 'EaglerBridge',
+    name,
+    cracked: true,
+    time: Date.now(),
+    data: {
+      motd: ['\u00a7aEaglerBridge 1.19.4', '\u00a77vanilla TCP tunnel'],
+      icon: true,
+      online: 1,
+      max: 20,
+      players: [name],
+      brand: 'EaglerBridge',
+      vers: '1.0',
+      time: Date.now()
+    }
+  });
+}
+
+function makeIcon() {
+  const out = Buffer.alloc(64 * 64 * 4);
+  for (let y = 0; y < 64; ++y) {
+    for (let x = 0; x < 64; ++x) {
+      const i = (y * 64 + x) * 4;
+      out[i] = 0x30 + Math.floor((x / 64) * 0x7f);
+      out[i + 1] = 0x60 + Math.floor((y / 64) * 0x7f);
+      out[i + 2] = 0xa0;
+      out[i + 3] = 0xff;
+    }
+  }
+  return out;
+}
+
+const QUERY_ICON = makeIcon();
+
 function writeVarInt(out, v) {
   while ((v & 0xffffff80) !== 0) {
     out.push((v & 0x7f) | 0x80);
@@ -79,8 +117,11 @@ class EaglerBridge {
     this.targetPort = opts.targetPort || 25565;
     this.listenPort = opts.listenPort || 8081;
     this.listenHost = opts.listenHost || '127.0.0.1';
+    this.displayName = `${this.targetHost}:${this.targetPort}`;
     this.wss = new WebSocket.Server({ port: this.listenPort, host: this.listenHost });
-    console.log(`[bridge] ws://${this.listenHost}:${this.listenPort} -> tcp://${this.targetHost}:${this.targetPort}`);
+    this.wss.on('listening', () => {
+      console.log(`[bridge] ws://${this.listenHost}:${this.listenPort} -> tcp://${this.targetHost}:${this.targetPort}`);
+    });
     this.wss.on('connection', (ws) => new Session(ws, this));
     this.wss.on('error', (e) => console.error('[bridge] server error', e));
   }
@@ -102,7 +143,7 @@ class Session {
     this.statusQueue = [];
     this.statusConnected = false;
 
-    ws.on('message', (msg) => this.onClientMessage(msg));
+    ws.on('message', (msg, isBinary) => this.onClientMessage(msg, isBinary));
     ws.on('close', () => this.close('client closed'));
     ws.on('error', (e) => { console.log('[bridge] client ws error:', e.message); this.close('client error'); });
     ws.on('pong', () => {});
@@ -122,8 +163,23 @@ class Session {
     if (this.ws.readyState === WebSocket.OPEN) this.ws.send(buf);
   }
 
-  onClientMessage(msg) {
+  sendClientText(text) {
+    if (this.ws.readyState === WebSocket.OPEN) this.ws.send(text);
+  }
+
+  onClientMessage(msg, isBinary) {
     if (this.closed) return;
+    if (!isBinary) {
+      const text = typeof msg === 'string' ? msg : Buffer.from(msg).toString('utf8');
+      if (/^\s*accept\s*:/i.test(text)) {
+        this.log('query:', text.trim());
+        this.sendClientText(motdDocument(this.bridge.displayName));
+        this.sendClient(QUERY_ICON);
+        return;
+      }
+      this.log('ignoring text frame:', text.slice(0, 80));
+      return;
+    }
     const buf = Buffer.isBuffer(msg) ? msg : Buffer.from(msg);
     if (buf.length === 0) return;
     try {
@@ -162,9 +218,9 @@ class Session {
     return out;
   }
 
-  // The multiplayer screen pings with a *vanilla* status handshake, not the
-  // Eagler one. Relay it straight through to the backend so the MOTD/player
-  // count are real.
+  // Some clients ping with a vanilla status handshake. Keep relaying that to
+  // the backend, but note that this client's server list uses the Eagler text
+  // query handled in onClientMessage() instead.
   startStatusPing(hs) {
     const proto = readVarInt(hs, 1);
     const hostLen = readVarInt(hs, proto.pos);

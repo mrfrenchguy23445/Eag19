@@ -253,6 +253,7 @@ function handleUpgrade(req, socket) {
 
 	const onHandshakePacket = (data) => {
 		if (data.length === 0) return;
+		log("raw frame " + data.toString("hex"));
 		const packetId = data[0];
 		switch (packetId) {
 			case 0x01: {
