@@ -19,52 +19,127 @@ and the bridge will reject it with a clear message.
 - The backend must listen on a normal vanilla TCP port and accept protocol 762
   (1.19.4). A Bungee/Paper setup with ViaVersion etc. is fine.
 - Bungee (or the backend) must be in offline mode.
+- The browser must be able to reach the bridge over WebSocket.
 
-## Run it
+The bridge cannot run inside the offline HTML file or a static website: browsers
+cannot open raw TCP sockets. It must run as a small Node process either on the
+player's PC (offline download) or on a host you control (website).
 
-From this directory:
+## Offline download, same PC as Bungee
 
-```sh
+Install once, then start the bridge:
+
+```bat
+cd C:\Users\Disas\Documents\Eag190\bridge
 npm ci
 node eagler-bridge.js --bind 127.0.0.1 --listen 8081 --target 127.0.0.1 --port 25565
 ```
 
-Replace `--target` / `--port` with the real Bungee host and TCP port. Then, in
-the client, add this server address:
+In the client, add:
 
 ```
 ws://localhost:8081/
 ```
 
-Keep the bridge running while you play. No client rebuild is needed; the
-existing offline HTML already knows how to talk to it.
+Keep the bridge running while you play. No client rebuild is needed.
 
-If the browser is on another device, bind to all interfaces and use this PC's
-LAN IP instead:
+## Any Bungee host or port
 
-```sh
-node eagler-bridge.js --bind 0.0.0.0 --listen 8081 --target 127.0.0.1 --port 25565
+Add `--allow-any-target`. Each client then chooses the backend in the WebSocket
+URL with `?host=...&port=...`:
+
+```bat
+node eagler-bridge.js --bind 127.0.0.1 --listen 8081 --allow-any-target --token CHANGE_ME
 ```
 
+Client address:
+
 ```
-ws://192.168.1.2:8081/
+ws://localhost:8081/?host=127.0.0.1&port=25566&token=CHANGE_ME
 ```
 
-Allow port 8081 through the firewall in that case.
+`--target` and `--port` become the fallback when the URL omits `host` or `port`.
+
+The `host` is resolved **by the bridge machine**, not by the browser. On an
+offline download that is the player's PC; on a website it is the bridge server.
+Use a hostname/IP reachable from wherever the bridge runs.
+
+### Security
+
+`--allow-any-target` turns the bridge into a TCP relay. If you bind to anything
+other than `127.0.0.1`, always set `--token`:
+
+```
+ws://bridge.example.com:8081/?host=mc.example.com&port=25565&token=CHANGE_ME
+```
+
+Requests with a missing or wrong token are closed with WebSocket code `1008`
+before any backend connection is opened.
+
+## Website / HTTPS hosting
+
+A static site can serve the HTML, but it cannot host the bridge. Run the bridge
+on a Node-capable server, then point the client at it.
+
+If your site is served over **HTTPS**, the client must use `wss://`; browsers
+block `ws://` from HTTPS pages. Two ways to do that:
+
+### Option A: Caddy reverse proxy (recommended)
+
+Run the bridge on localhost:
+
+```bat
+node eagler-bridge.js --bind 127.0.0.1 --listen 8081 --allow-any-target --token CHANGE_ME
+```
+
+Caddyfile:
+
+```caddyfile
+bridge.example.com {
+	reverse_proxy 127.0.0.1:8081
+}
+```
+
+Caddy handles TLS automatically. Client address:
+
+```
+wss://bridge.example.com/?host=mc.example.com&port=25565&token=CHANGE_ME
+```
+
+### Option B: native TLS in the bridge
+
+Give the bridge a PEM certificate and key:
+
+```bat
+node eagler-bridge.js --bind 0.0.0.0 --listen 8081 --allow-any-target --token CHANGE_ME --tls-cert fullchain.pem --tls-key privkey.pem
+```
+
+Client address:
+
+```
+wss://bridge.example.com:8081/?host=mc.example.com&port=25565&token=CHANGE_ME
+```
+
+nginx, Apache, or a cloud load balancer can terminate TLS the same way.
+
+If the website is plain HTTP, `ws://bridge.example.com:8081/?...` is fine.
 
 ## Verify it
 
-```sh
+```bat
+cd C:\Users\Disas\Documents\Eag190\bridge
 npm test
 ```
 
-The test starts a fake vanilla backend and proves all four critical pieces:
+The test proves:
 
-1. `Accept: MOTD` gets a JSON text frame plus a 64×64 RGBA icon binary frame.
-2. The backend handshake uses protocol 762 with next state `login`.
-3. `LoginStart` contains the username, `false` for `Optional<UUID>`, and no UUID
+1. A wrong `--token` is rejected with close code `1008`.
+2. Per-client `?host=&port=` overrides reach the backend.
+3. `Accept: MOTD` gets a JSON text frame plus a 64×64 RGBA icon binary frame.
+4. The backend handshake uses protocol 762 with next state `login`.
+5. `LoginStart` contains the username, `false` for `Optional<UUID>`, and no UUID
    bytes. This is the byte that EaglerXServer forgets.
-4. Play packets relay both ways with vanilla TCP framing and no WebSocket length
+6. Play packets relay both ways with vanilla TCP framing and no WebSocket length
    prefix.
 
 ## Server-list queries
@@ -73,9 +148,20 @@ The bridge answers Eagler `Accept: MOTD` queries itself with a small static
 MOTD/icon. It does not use the vanilla status protocol for the list, because
 that is not what this client sends. Actual joins still go to the real backend.
 
-## Protocol notes
+## All options
 
-These are the parts that are easy to get wrong:
+```text
+--bind ip             WebSocket listen address (default 127.0.0.1)
+--listen port         WebSocket listen port (default 8081)
+--target host         default Bungee host (default 127.0.0.1)
+--port port           default Bungee port (default 25565)
+--allow-any-target    let each client choose host/port with ?host=&port=
+--token secret        require ?token=secret in the WebSocket URL
+--tls-cert file       PEM certificate for native wss support
+--tls-key file        PEM private key for native wss support
+```
+
+## Protocol notes
 
 - **Eagler WebSocket framing is one binary message per packet.** There is no
   length prefix; the vanilla framing (`frame()`) only applies to the TCP side.

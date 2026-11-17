@@ -7,6 +7,7 @@ const WebSocket = require('ws');
 const REPO = path.resolve(__dirname, '..', '..');
 const BRIDGE = path.join(__dirname, '..', 'eagler-bridge.js');
 const USERNAME = 'BridgeTester';
+const TOKEN = 'test-token';
 
 function writeVarInt(out, v) {
   v >>>= 0;
@@ -158,7 +159,9 @@ async function main() {
     '--bind', '127.0.0.1',
     '--listen', String(listenPort),
     '--target', '127.0.0.1',
-    '--port', String(backendPort)
+    '--port', '1',
+    '--allow-any-target',
+    '--token', TOKEN
   ], { cwd: REPO, stdio: ['ignore', 'pipe', 'pipe'] });
 
   let bridgeOutput = '';
@@ -175,8 +178,9 @@ async function main() {
   });
   await withTimeout(ready, 5000, 'bridge startup');
 
-  const connect = () => new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${listenPort}/`);
+  const targetQuery = `?host=127.0.0.1&port=${backendPort}&token=${TOKEN}`;
+  const connect = (query = '') => new Promise((resolve, reject) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${listenPort}/${query}`);
     ws.once('open', () => resolve(ws));
     ws.once('error', reject);
   });
@@ -193,8 +197,14 @@ async function main() {
   });
 
   try {
+    // A wrong token is rejected before any backend connection is opened.
+    const bad = new WebSocket(`ws://127.0.0.1:${listenPort}/?host=127.0.0.1&port=${backendPort}&token=wrong`);
+    bad.once('error', () => {});
+    const badClose = new Promise((resolve) => bad.once('close', (code) => resolve(code)));
+    assert.strictEqual(await withTimeout(badClose, 5000, 'token rejection'), 1008);
+
     // Server-list query is answered by the bridge, not the backend.
-    const queryWs = await connect();
+    const queryWs = await connect(targetQuery);
     const queryPromise = new Promise((resolve) => {
       const messages = [];
       queryWs.on('message', (data, isBinary) => {
@@ -207,13 +217,14 @@ async function main() {
     assert.strictEqual(query[0].isBinary, false, 'MOTD must be a text frame');
     const motd = JSON.parse(query[0].data.toString());
     assert.strictEqual(motd.type, 'motd');
+    assert.strictEqual(motd.name, `127.0.0.1:${backendPort}`, 'MOTD should show the per-client target');
     assert.strictEqual(motd.data.icon, true);
     assert.strictEqual(query[1].isBinary, true, 'icon must be a binary frame');
     assert.strictEqual(query[1].data.length, 64 * 64 * 4);
     queryWs.close();
 
     // Real join: Eagler v5 in, vanilla protocol 762 out.
-    const ws = await connect();
+    const ws = await connect(targetQuery);
     const versionP = nextBinary(ws);
     ws.send(clientVersionPacket());
     const serverVersion = await versionP;
@@ -224,6 +235,8 @@ async function main() {
     ws.send(requestLoginPacket());
     const handshake = await withTimeout(handshakeSeen, 5000, 'backend handshake');
     assert.strictEqual(handshake.proto, 762);
+    assert.strictEqual(handshake.host, '127.0.0.1');
+    assert.strictEqual(handshake.port, backendPort, 'backend port must come from the client URL');
     assert.strictEqual(handshake.nextState, 2);
     const loginStart = await withTimeout(loginStartSeen, 5000, 'backend LoginStart');
     assert.strictEqual(loginStart.name, USERNAME);
@@ -244,7 +257,7 @@ async function main() {
     assert.deepStrictEqual(await responseP, Buffer.from([0x1f, 0x01]));
     ws.close();
 
-    console.log('PASS MOTD query, 762 handshake, LoginStart(false), and play relay');
+    console.log('PASS per-client target, token gate, MOTD, 762 handshake, LoginStart(false), and play relay');
   } catch (e) {
     if (bridgeOutput) console.error(bridgeOutput);
     throw e;

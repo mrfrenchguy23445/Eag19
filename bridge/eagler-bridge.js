@@ -10,6 +10,8 @@
 //     backend enabled compression.
 const net = require('net');
 const zlib = require('zlib');
+const fs = require('fs');
+const https = require('https');
 const WebSocket = require('ws');
 const crypto = require('crypto');
 
@@ -71,6 +73,36 @@ function makeIcon() {
 
 const QUERY_ICON = makeIcon();
 
+function parseTargetParams(reqUrl, bridge) {
+  const params = new URL(reqUrl || '/', 'http://bridge.local').searchParams;
+  if (bridge.token && params.get('token') !== bridge.token) {
+    throw new Error('invalid bridge token');
+  }
+
+  let host = bridge.targetHost;
+  let port = bridge.targetPort;
+
+  if (bridge.allowAnyTarget) {
+    const requestedHost = params.get('host');
+    const requestedPort = params.get('port');
+
+    if (requestedHost !== null) {
+      if (!requestedHost || requestedHost.length > 255 || !/^[A-Za-z0-9._:\[\]-]+$/.test(requestedHost)) {
+        throw new Error('invalid target host');
+      }
+      host = requestedHost;
+    }
+    if (requestedPort !== null) {
+      port = Number(requestedPort);
+      if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        throw new Error('invalid target port');
+      }
+    }
+  }
+
+  return { host, port, displayName: `${host}:${port}` };
+}
+
 function writeVarInt(out, v) {
   while ((v & 0xffffff80) !== 0) {
     out.push((v & 0x7f) | 0x80);
@@ -117,20 +149,58 @@ class EaglerBridge {
     this.targetPort = opts.targetPort || 25565;
     this.listenPort = opts.listenPort || 8081;
     this.listenHost = opts.listenHost || '127.0.0.1';
-    this.displayName = `${this.targetHost}:${this.targetPort}`;
-    this.wss = new WebSocket.Server({ port: this.listenPort, host: this.listenHost });
-    this.wss.on('listening', () => {
-      console.log(`[bridge] ws://${this.listenHost}:${this.listenPort} -> tcp://${this.targetHost}:${this.targetPort}`);
+    this.allowAnyTarget = !!opts.allowAnyTarget;
+    this.token = opts.token || null;
+    this.scheme = opts.tlsCert && opts.tlsKey ? 'wss' : 'ws';
+
+    if (this.scheme === 'wss') {
+      this.httpServer = https.createServer({
+        cert: fs.readFileSync(opts.tlsCert),
+        key: fs.readFileSync(opts.tlsKey)
+      });
+      this.wss = new WebSocket.Server({ server: this.httpServer });
+    } else {
+      this.wss = new WebSocket.Server({ port: this.listenPort, host: this.listenHost });
+    }
+
+    const listener = this.httpServer || this.wss;
+    const defaultRoute = `tcp://${this.targetHost}:${this.targetPort}`;
+    const overrides = this.allowAnyTarget ? ' (per-client ?host=&port= enabled)' : '';
+    listener.on('listening', () => {
+      console.log(`[bridge] ${this.scheme}://${this.listenHost}:${this.listenPort} -> ${defaultRoute}${overrides}`);
     });
-    this.wss.on('connection', (ws) => new Session(ws, this));
+    listener.on('error', (e) => console.error('[bridge] listen error', e));
     this.wss.on('error', (e) => console.error('[bridge] server error', e));
+
+    if (this.httpServer) {
+      this.httpServer.listen(this.listenPort, this.listenHost);
+    }
+
+    this.wss.on('connection', (ws, req) => {
+      let target;
+      try {
+        target = parseTargetParams(req.url, this);
+      } catch (e) {
+        this.logRejected(req, e.message);
+        ws.close(1008, e.message);
+        return;
+      }
+      new Session(ws, this, target);
+    });
+  }
+
+  logRejected(req, reason) {
+    console.log(`[bridge] rejected ${req.socket.remoteAddress || 'unknown'}: ${reason}`);
   }
 }
 
 class Session {
-  constructor(ws, bridge) {
+  constructor(ws, bridge, target) {
     this.ws = ws;
     this.bridge = bridge;
+    this.targetHost = target.host;
+    this.targetPort = target.port;
+    this.displayName = target.displayName;
     this.state = 'eagler_version';
     this.username = null;
     this.backend = null;
@@ -173,7 +243,7 @@ class Session {
       const text = typeof msg === 'string' ? msg : Buffer.from(msg).toString('utf8');
       if (/^\s*accept\s*:/i.test(text)) {
         this.log('query:', text.trim());
-        this.sendClientText(motdDocument(this.bridge.displayName));
+        this.sendClientText(motdDocument(this.displayName));
         this.sendClient(QUERY_ICON);
         return;
       }
@@ -337,7 +407,7 @@ class Session {
   // ---- backend (vanilla TCP) ------------------------------------------------
 
   connectBackend() {
-    const b = net.createConnection({ host: this.bridge.targetHost, port: this.bridge.targetPort });
+    const b = net.createConnection({ host: this.targetHost, port: this.targetPort });
     this.backend = b;
     b.on('connect', () => {
       if (this.state === 'status') {
@@ -352,10 +422,10 @@ class Session {
       const hs = [];
       writeVarInt(hs, 0);                       // serverbound handshake
       writeVarInt(hs, GAME_PROTO);
-      const addr = Buffer.from(this.bridge.targetHost);
+      const addr = Buffer.from(this.targetHost);
       writeVarInt(hs, addr.length);
       for (const c of addr) hs.push(c);
-      hs.push((this.bridge.targetPort >> 8) & 0xff, this.bridge.targetPort & 0xff);
+      hs.push((this.targetPort >> 8) & 0xff, this.targetPort & 0xff);
       writeVarInt(hs, 2);                       // next state: login
       b.write(frame(Buffer.from(hs)));
 
@@ -533,9 +603,27 @@ for (let i = 0; i < args.length; i++) {
     case '--port': opts.targetPort = parseInt(args[++i], 10); break;
     case '--listen': opts.listenPort = parseInt(args[++i], 10); break;
     case '--bind': opts.listenHost = args[++i]; break;
+    case '--allow-any-target': opts.allowAnyTarget = true; break;
+    case '--token': opts.token = args[++i]; break;
+    case '--tls-cert': opts.tlsCert = args[++i]; break;
+    case '--tls-key': opts.tlsKey = args[++i]; break;
     case '--help':
-      console.log('Usage: node eagler-bridge.js [--bind ip] [--listen port] [--target host] [--port port]');
+      console.log([
+        'Usage: node eagler-bridge.js [options]',
+        '',
+        '  --bind ip             WebSocket listen address (default 127.0.0.1)',
+        '  --listen port         WebSocket listen port (default 8081)',
+        '  --target host         default Bungee host (default 127.0.0.1)',
+        '  --port port           default Bungee port (default 25565)',
+        '  --allow-any-target    let each client choose host/port with ?host=&port=',
+        '  --token secret        require ?token=secret in the WebSocket URL',
+        '  --tls-cert file       PEM certificate for native wss support',
+        '  --tls-key file        PEM private key for native wss support'
+      ].join('\n'));
       process.exit(0);
+    default:
+      console.error('Unknown option: ' + args[i]);
+      process.exit(1);
   }
 }
 new EaglerBridge(opts);
