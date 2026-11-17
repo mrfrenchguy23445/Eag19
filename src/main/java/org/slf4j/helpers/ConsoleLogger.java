@@ -46,7 +46,40 @@ public class ConsoleLogger extends AbstractLogger {
 		sb.append("[console/").append(level.name()).append("][").append(name).append("]: ").append(msg);
 		RAW_STREAM.println(sb.toString());
 		if (throwable != null) {
-			RAW_STREAM.println(String.valueOf(throwable));
+			printThrowable(throwable);
+		}
+	}
+
+	/**
+	 * Prints the full cause chain, not just {@code toString()}. The wasm-gc build
+	 * has no real stack walker (every frame is {@code Throwable$FakeClass}), but
+	 * the *messages* of the wrapped causes are intact and are usually the only
+	 * clue available for failures inside chunk generation.
+	 */
+	private static void printThrowable(Throwable throwable) {
+		Throwable current = throwable;
+		for (int depth = 0; current != null && depth < 12; depth++) {
+			RAW_STREAM.println(depth == 0 ? String.valueOf(current) : "Caused by: " + current);
+			StackTraceElement[] stack = null;
+			try {
+				stack = current.getStackTrace();
+			} catch (Throwable ignored) {
+			}
+			if (stack != null) {
+				for (int i = 0; i < stack.length && i < 24; i++) {
+					RAW_STREAM.println("\tat " + stack[i]);
+				}
+			}
+			Throwable cause;
+			try {
+				cause = current.getCause();
+			} catch (Throwable ignored) {
+				cause = null;
+			}
+			if (cause == current) {
+				break;
+			}
+			current = cause;
 		}
 	}
 

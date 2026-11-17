@@ -49,7 +49,6 @@ public class SimpleReloadInstance<S> implements ReloadInstance {
       CompletableFuture<Unit> param5
    ) {
       this.listenerCount = param3.size();
-      diag("constructor: " + param3.size() + " listeners, initialTaskDone=" + param5.isDone());
       this.startedTaskCounter.incrementAndGet();
       param5.thenRun(this.doneTaskCounter::incrementAndGet);
       List<CompletableFuture<S>> var7 = Lists.newArrayList();
@@ -63,9 +62,7 @@ public class SimpleReloadInstance<S> implements ReloadInstance {
             public <T> CompletableFuture<T> wait(T l_param0) {
                param1.execute(() -> {
                   SimpleReloadInstance.this.preparingListeners.remove(var10);
-                  diag("prepare done: \"" + var10.getName() + "\" (" + SimpleReloadInstance.this.preparingListeners.size() + " left)");
                   if (SimpleReloadInstance.this.preparingListeners.isEmpty()) {
-                     diag("allPreparations completed");
                      SimpleReloadInstance.this.allPreparations.complete(Unit.INSTANCE);
                   }
                });
@@ -74,17 +71,14 @@ public class SimpleReloadInstance<S> implements ReloadInstance {
          }, param2, var10, l_param1 -> {
             this.startedTaskCounter.incrementAndGet();
             param0.execute(() -> {
-               diag("prepare task run: \"" + var10.getName() + "\"");
                l_param1.run();
                this.doneTaskCounter.incrementAndGet();
             });
          }, l_param1 -> {
             this.startedReloads++;
             param1.execute(() -> {
-               diag("apply task run: \"" + var10.getName() + "\"");
                l_param1.run();
                this.finishedReloads++;
-               diag("apply task done: \"" + var10.getName() + "\"");
             });
          });
          var7.add(var12);
@@ -92,17 +86,6 @@ public class SimpleReloadInstance<S> implements ReloadInstance {
       }
 
       this.allDone = Util.sequenceFailFast(var7);
-      this.allDone.whenComplete((l1, l2) -> diag("allDone whenComplete: " + var7.size() + " stages"
-         + (l1 == null ? " completed" : " result=" + l1) + (l2 == null ? "" : " err=" + l2)));
-   }
-
-   private static void diag(String msg) {
-      System.out.println("[diag] SimpleReloadInstance: " + msg);
-      try {
-         net.lax1dude.eaglercraft.v1_8.log4j.LogManager.getLogger("Diag").info("{}", "SimpleReloadInstance: " + msg);
-      } catch (Throwable var2) {
-         System.out.println("[diag-eag-fail] SimpleReloadInstance: " + var2);
-      }
    }
 
    @Override

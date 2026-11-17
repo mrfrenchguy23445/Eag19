@@ -134,7 +134,14 @@ public class Connection implements ChannelHandler {
          return trimmed;
       }
 
-      return "wss://" + trimmed;
+      // Match the page transport: a client served over https must use wss, but a
+      // dev/self-hosted client on http has to use plain ws or the browser refuses
+      // the mixed-content upgrade. The desktop runtime has no page transport and
+      // talks to the same wss-only public servers, so it keeps wss.
+      boolean useSsl = net.lax1dude.eaglercraft.v1_8.EagRuntime.getPlatformType()
+         == net.lax1dude.eaglercraft.v1_8.internal.EnumPlatformType.DESKTOP
+         || net.lax1dude.eaglercraft.v1_8.EagRuntime.requireSSL();
+      return (useSsl ? "wss://" : "ws://") + trimmed;
    }
 
    public static String getHostFromURI(String webSocketURI) {

@@ -15,6 +15,10 @@ import org.apache.commons.lang3.mutable.MutableInt;
 public final class SkyLightEngine extends LayerLightEngine<SkyLightSectionStorage.SkyDataLayerStorageMap, SkyLightSectionStorage> {
    private static final Direction[] DIRECTIONS = Direction.values();
    private static final Direction[] HORIZONTALS = new Direction[]{Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST};
+   // Reused across propagation steps instead of allocating a MutableInt for every
+   // edge (millions during chunk generation). Not reentrant: computeLevelFromNeighbor
+   // never calls itself.
+   private final MutableInt opacity = new MutableInt();
 
    public SkyLightEngine(LightChunkGetter param0) {
       super(param0, LightLayer.SKY, new SkyLightSectionStorage(param0));
@@ -30,9 +34,8 @@ public final class SkyLightEngine extends LayerLightEngine<SkyLightSectionStorag
          return param4;
       }
 
-      MutableInt var6 = new MutableInt();
-      BlockState var7 = this.getStateAndOpacity(param2, var6);
-      if (var6.getValue() >= 15) {
+      BlockState var7 = this.getStateAndOpacity(param2, this.opacity);
+      if (this.opacity.getValue() >= 15) {
          return 15;
       }
 
@@ -59,7 +62,7 @@ public final class SkyLightEngine extends LayerLightEngine<SkyLightSectionStorag
 
       boolean var21 = var8 == var11 && var10 == var13;
       boolean var22 = var21 && var9 > var12;
-      return var22 && param4 == 0 && var6.getValue() == 0 ? 0 : param4 + Math.max(1, var6.getValue());
+      return var22 && param4 == 0 && this.opacity.getValue() == 0 ? 0 : param4 + Math.max(1, this.opacity.getValue());
    }
 
    @Override
@@ -156,7 +159,9 @@ public final class SkyLightEngine extends LayerLightEngine<SkyLightSectionStorag
 
    @Override
    protected void checkNode(long param0) {
-      this.storage.runAllUpdates();
+      // The storage flush happens once per checkBlock() in LayerLightEngine, and
+      // again inside super.checkNode() when called standalone. Doing it here too
+      // only cost a second drain of the same section map.
       long var3 = SectionPos.blockToSection(param0);
       if (this.storage.storingLightForSection(var3)) {
          super.checkNode(param0);

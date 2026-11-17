@@ -24,7 +24,6 @@ import net.minecraft.util.FastColor;
 import net.minecraft.util.Mth;
 
 public class LoadingOverlay extends Overlay {
-   private static long diagLastLog = -1L;
    static final ResourceLocation MOJANG_STUDIOS_LOGO_LOCATION = new ResourceLocation("textures/gui/title/mojangstudios.png");
    private static final int LOGO_BACKGROUND_COLOR = FastColor.ARGB32.color(255, 239, 50, 61);
    private static final int LOGO_BACKGROUND_COLOR_DARK = FastColor.ARGB32.color(255, 0, 0, 0);
@@ -54,15 +53,6 @@ public class LoadingOverlay extends Overlay {
       this.fadeIn = param3;
    }
 
-   private static void diag(String msg) {
-      System.out.println("[diag] LoadingOverlay: " + msg);
-      try {
-         net.lax1dude.eaglercraft.v1_8.log4j.LogManager.getLogger("Diag").info("{}", "LoadingOverlay: " + msg);
-      } catch (Throwable var2) {
-         System.out.println("[diag-eag-fail] LoadingOverlay: " + var2);
-      }
-   }
-
    public static void registerTextures(Minecraft param0) {
       param0.getTextureManager().register(MOJANG_STUDIOS_LOGO_LOCATION, new LoadingOverlay.LogoTexture());
    }
@@ -73,13 +63,6 @@ public class LoadingOverlay extends Overlay {
 
    @Override
    public void render(PoseStack param0, int param1, int param2, float param3) {
-      long varDiag = Util.getMillis();
-      if (varDiag - diagLastLog > 1500L) {
-         diagLastLog = varDiag;
-         diag("fadeIn=" + this.fadeIn + " isDone=" + this.reload.isDone() + " progress=" + this.reload.getActualProgress()
-            + " fadeOutStart=" + this.fadeOutStart + " fadeInStart=" + this.fadeInStart
-            + " screen=" + (this.minecraft.screen == null ? "null" : this.minecraft.screen.getClass().getSimpleName()));
-      }
       int var5 = this.minecraft.getWindow().getGuiScaledWidth();
       int var6 = this.minecraft.getWindow().getGuiScaledHeight();
       long var7 = Util.getMillis();
@@ -92,7 +75,6 @@ public class LoadingOverlay extends Overlay {
       float var11;
       if (var9 >= 1.0F) {
          if (this.minecraft.screen != null) {
-            diag("fading, rendering " + this.minecraft.screen.getClass().getSimpleName() + " behind");
             this.minecraft.screen.render(param0, 0, 0, param3);
          }
 
@@ -101,7 +83,6 @@ public class LoadingOverlay extends Overlay {
          var11 = 1.0F - Mth.clamp(var9 - 1.0F, 0.0F, 1.0F);
       } else if (this.fadeIn) {
          if (this.minecraft.screen != null && var10 < 1.0F) {
-            diag("fadeIn, rendering " + this.minecraft.screen.getClass().getSimpleName() + " behind");
             this.minecraft.screen.render(param0, param1, param2, param3);
          }
 
@@ -141,13 +122,10 @@ public class LoadingOverlay extends Overlay {
       }
 
       if (var9 >= 2.0F) {
-         diag("overlay finished, removing overlay");
          this.minecraft.setOverlay(null);
       }
 
       if (this.fadeOutStart == -1L && this.reload.isDone() && (!this.fadeIn || var10 >= 2.0F)) {
-         diag("reload done, starting fadeOut; screen="
-            + (this.minecraft.screen == null ? "null" : this.minecraft.screen.getClass().getSimpleName()));
          try {
             this.reload.checkExceptions();
             this.onFinish.accept(Optional.empty());

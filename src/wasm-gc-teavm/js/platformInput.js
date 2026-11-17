@@ -322,14 +322,23 @@ async function initPlatformInput(inputImports) {
 	canvasElement.addEventListener("mousedown", /** @type {function(Event)} */ (currentEventListeners.mousedown = function(/** MouseEvent */ evt) {
 		evt.preventDefault();
 		evt.stopPropagation();
-		if(pointerLockSupported && pointerLockDesired && document.pointerLockElement !== canvasElement) {
-			mouseSetGrabbed(1);
-			return;
+		if(pointerLockSupported && pointerLockDesired && !pointerLockFlag
+				&& document.pointerLockElement !== canvasElement) {
+			// Trying to (re)acquire the grab. Only retry when the browser might
+			// actually grant it; once pointer lock is known to be unavailable we
+			// fall through and deliver the click to the game instead of throwing
+			// one SecurityError per click.
+			if(!pointerLockAvailable) {
+				activateVirtualGrab();
+			}else if(canAttemptPointerLock()) {
+				mouseSetGrabbed(1);
+				return;
+			}
 		}
 		pushEvent(EVENT_TYPE_INPUT, EVENT_INPUT_MOUSE, {
 			"eventType": EVENT_MOUSE_DOWN,
-			"posX": evt.offsetX,
-			"posY": canvasElement.height - evt.offsetY - 1,
+			"posX": virtualGrabActive ? virtualMouseX : evt.offsetX,
+			"posY": virtualGrabActive ? (canvasElement.height - virtualMouseY - 1) : (canvasElement.height - evt.offsetY - 1),
 			"button": evt.button
 		});
 	}));
@@ -339,8 +348,8 @@ async function initPlatformInput(inputImports) {
 		evt.stopPropagation();
 		pushEvent(EVENT_TYPE_INPUT, EVENT_INPUT_MOUSE, {
 			"eventType": EVENT_MOUSE_UP,
-			"posX": evt.offsetX,
-			"posY": canvasElement.height - evt.offsetY - 1,
+			"posX": virtualGrabActive ? virtualMouseX : evt.offsetX,
+			"posY": virtualGrabActive ? (canvasElement.height - virtualMouseY - 1) : (canvasElement.height - evt.offsetY - 1),
 			"button": evt.button
 		});
 	}));
@@ -348,10 +357,28 @@ async function initPlatformInput(inputImports) {
 	canvasElement.addEventListener("mousemove", /** @type {function(Event)} */ (currentEventListeners.mousemove = function(/** MouseEvent */ evt) {
 		evt.preventDefault();
 		evt.stopPropagation();
+		let posX, posY;
+		if(virtualGrabActive) {
+			// No real pointer lock, but the game wants the mouse grabbed. Feed it a
+			// synthetic cursor that only moves by the relative deltas, then keep it
+			// parked near the centre so precision never degrades. MouseHandler reads
+			// differences between successive positions, so this is exactly the
+			// movement it would have seen from a locked cursor.
+			posX = virtualMouseX;
+			posY = canvasElement.height - virtualMouseY - 1;
+			virtualMouseX += (typeof evt.movementX === "number" ? evt.movementX : 0);
+			virtualMouseY += (typeof evt.movementY === "number" ? evt.movementY : 0);
+			// Deliberately unbounded: MouseHandler only consumes the difference
+			// between successive positions, and clamping would inject a huge fake
+			// delta (and a camera snap) whenever the synthetic cursor left the canvas.
+		}else {
+			posX = evt.offsetX;
+			posY = canvasElement.height - evt.offsetY - 1;
+		}
 		pushEvent(EVENT_TYPE_INPUT, EVENT_INPUT_MOUSE, {
 			"eventType": EVENT_MOUSE_MOVE,
-			"posX": evt.offsetX,
-			"posY": canvasElement.height - evt.offsetY - 1,
+			"posX": posX,
+			"posY": posY,
 			"movementX": evt.movementX,
 			"movementY": evt.movementY
 		});
@@ -849,6 +876,24 @@ async function initPlatformInput(inputImports) {
 	inputImports["mouseSetGrabbed"] = mouseSetGrabbed;
 
 	/**
+	 * DEV ONLY: inspect the pointer-lock state machine from the console.
+	 */
+	window.__eagPointerLockState = function() {
+		return {
+			supported: pointerLockSupported,
+			available: pointerLockAvailable,
+			desired: pointerLockDesired,
+			flag: pointerLockFlag,
+			waiting: pointerLockWaiting,
+			virtualGrab: virtualGrabActive,
+			failures: pointerLockFailures,
+			locked: (document.pointerLockElement === canvasElement),
+			virtualX: virtualMouseX,
+			virtualY: virtualMouseY
+		};
+	};
+
+	/**
 	 * @return {boolean}
 	 */
 	inputImports["isMouseGrabSupported"] = function() {
@@ -866,7 +911,8 @@ async function initPlatformInput(inputImports) {
 	 * @return {boolean}
 	 */
 	inputImports["isPointerLocked"] = function() {
-		return pointerLockSupported && (pointerLockWaiting || document.pointerLockElement === canvasElement);
+		return pointerLockSupported
+			&& (pointerLockWaiting || virtualGrabActive || document.pointerLockElement === canvasElement);
 	};
 
 	/**

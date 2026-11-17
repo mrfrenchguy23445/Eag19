@@ -238,7 +238,6 @@ import net.minecraft.world.phys.HitResult;
 import net.lax1dude.eaglercraft.v1_8.PlatformLocale;
 import net.lax1dude.eaglercraft.v1_8.internal.PlatformApplication;
 import net.lax1dude.eaglercraft.v1_8.FileUtils;
-import net.lax1dude.eaglercraft.v1_8.BootDiag;
 import net.lax1dude.eaglercraft.v1_8.profile.EaglerProfile;
 import org.joml.Matrix4f;
 import org.slf4j.Logger;
@@ -394,7 +393,6 @@ public class Minecraft extends ReentrantBlockableEventLoop<Runnable> implements 
    public Minecraft(GameConfig param0) {
       super("Client");
       instance = this;
-      BootDiag.probe("Minecraft ctor start");
       this.gameDirectory = param0.location.gameDirectory;
       File var2 = param0.location.assetDirectory;
       // java.io.File.toPath() does not exist in the WASM-GC TeaVM classlib, so the
@@ -579,11 +577,9 @@ public class Minecraft extends ReentrantBlockableEventLoop<Runnable> implements 
       this.chatListener.setMessageDelay(this.options.chatDelay().get());
       this.reportingContext = ReportingContext.create(ReportEnvironment.local(), this.userApiService);
       LoadingOverlay.registerTextures(this);
-      BootDiag.probe("Minecraft ctor: before createReload");
       List<PackResources> var9 = this.resourcePackRepository.openAllSelected();
       this.reloadStateTracker.startReload(ResourceLoadStateTracker.ReloadReason.INITIAL, var9);
       ReloadInstance var10 = this.resourceManager.createReload(Util.backgroundExecutor(), this, RESOURCE_RELOAD_INITIAL_TASK, var9);
-      BootDiag.probe("Minecraft ctor: createReload returned");
       this.setOverlay(new LoadingOverlay(this, var10, l_param0 -> Util.ifElse(l_param0, this::rollbackResourcePacks, () -> {
          if (SharedConstants.IS_RUNNING_IN_IDE) {
             this.selfTest();
@@ -591,7 +587,6 @@ public class Minecraft extends ReentrantBlockableEventLoop<Runnable> implements 
 
          this.reloadStateTracker.finishReload();
       }), false));
-      BootDiag.probe("Minecraft ctor: LoadingOverlay set, screen assignment next");
       if (var5 != null) {
          ServerAddress var11 = new ServerAddress(var5, var6);
          var10.done()
@@ -714,7 +709,6 @@ public class Minecraft extends ReentrantBlockableEventLoop<Runnable> implements 
 
    public void run() {
       this.gameThread = Thread.currentThread();
-      BootDiag.probe("Minecraft.run(): loop entered");
       // Runtime.availableProcessors() is not available on WASM-GC TeaVM. The browser
       // build is single-threaded, so the "more than 4 cores" case never applies.
       if (1 > 4) {
@@ -997,14 +991,6 @@ public class Minecraft extends ReentrantBlockableEventLoop<Runnable> implements 
       this.screen = param0;
       if (this.screen != null) {
          this.screen.added();
-      }
-
-      // Which screen is up is the single most useful thing to know when a
-      // client is misbehaving, and the game's own logger is a no-op in this
-      // build, so it goes to stdout where the browser console can see it.
-      try {
-         System.out.println("[screen] " + (param0 == null ? "null" : param0.getClass().getName()));
-      } catch (Throwable ignored) {
       }
 
       BufferUploader.reset();
@@ -2021,7 +2007,7 @@ public class Minecraft extends ReentrantBlockableEventLoop<Runnable> implements 
                StoringChunkProgressListener listener = new StoringChunkProgressListener(radius);
                listener.start();
                this.progressListener.set(listener);
-               this.setScreen(new net.minecraft.client.gui.screens.StartingServerScreen());
+               this.setScreen(new net.minecraft.client.gui.screens.LevelLoadingScreen(listener));
                return listener;
             });
          this.isLocalServer = true;

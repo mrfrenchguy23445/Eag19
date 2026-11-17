@@ -16,11 +16,15 @@ import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
+import net.lax1dude.eaglercraft.v1_8.EagRuntime;
+import net.lax1dude.eaglercraft.v1_8.internal.EnumPlatformType;
+import net.lax1dude.eaglercraft.v1_8.internal.FileChooserResult;
 import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
@@ -47,6 +51,12 @@ public class PackSelectionScreen extends Screen {
    private static final int LIST_WIDTH = 200;
    private static final Component DRAG_AND_DROP = Component.translatable("pack.dropInfo").withStyle(ChatFormatting.GRAY);
    private static final Component DIRECTORY_BUTTON_TOOLTIP = Component.translatable("pack.folderInfo");
+   /**
+    * The browser has no filesystem to open in an explorer window, so the same button imports a
+    * pack file through the page's file chooser instead. See {@link #isBrowser()}.
+    */
+   private static final Component IMPORT_BUTTON = Component.literal("Import Pack...");
+   private static final Component IMPORT_BUTTON_TOOLTIP = Component.literal("Select a .zip resource pack from your computer");
    private static final int RELOAD_COOLDOWN = 20;
    private static final ResourceLocation DEFAULT_ICON = new ResourceLocation("textures/misc/unknown_pack.png");
    private final PackSelectionModel model;
@@ -90,20 +100,52 @@ public class PackSelectionScreen extends Screen {
       this.selectedPackList = new TransferableSelectionList(this.minecraft, this, 200, this.height, Component.translatable("pack.selected.title"));
       this.selectedPackList.setLeftPos(this.width / 2 + 4);
       this.addWidget(this.selectedPackList);
+      boolean browser = this.isBrowser();
       this.addRenderableWidget(
-         Button.builder(Component.translatable("pack.openFolder"), l_param0 -> Util.getPlatform().openUri(this.packDir.toUri()))
+         Button.builder(
+               browser ? IMPORT_BUTTON : Component.translatable("pack.openFolder"),
+               l_param0 -> {
+                  if (browser) {
+                     // Null mime means the runtime filters by extension, which is the only filter
+                     // browsers agree on for .zip ("application/zip" is not used by every OS).
+                     EagRuntime.clearFileChooserResult();
+                     EagRuntime.displayFileChooser(null, "zip");
+                  } else {
+                     Util.getPlatform().openUri(this.packDir.toUri());
+                  }
+               }
+            )
             .bounds(this.width / 2 - 154, this.height - 48, 150, 20)
-            .tooltip(Tooltip.create(DIRECTORY_BUTTON_TOOLTIP))
+            .tooltip(Tooltip.create(browser ? IMPORT_BUTTON_TOOLTIP : DIRECTORY_BUTTON_TOOLTIP))
             .build()
       );
       this.doneButton = this.addRenderableWidget(
          Button.builder(CommonComponents.GUI_DONE, l_param0 -> this.onClose()).bounds(this.width / 2 + 4, this.height - 48, 150, 20).build()
       );
+      if (browser) {
+         // Packs dropped onto the page before this screen opened are stale, discard them.
+         EagRuntime.clearFileChooserResult();
+      }
       this.reload();
+   }
+
+   /**
+    * True for the JavaScript and WASM targets, which can only receive files through the page's
+    * file chooser / drag-and-drop rather than by reading a directory the user put files in.
+    */
+   private boolean isBrowser() {
+      return EagRuntime.getPlatformType() != EnumPlatformType.DESKTOP;
    }
 
    @Override
    public void tick() {
+      if (this.isBrowser() && EagRuntime.fileChooserHasResult()) {
+         FileChooserResult var1 = EagRuntime.getFileChooserResult();
+         if (var1 != null) {
+            this.importPackFile(var1);
+         }
+      }
+
       if (this.watcher != null) {
          try {
             if (this.watcher.pollForChanges()) {
@@ -155,6 +197,44 @@ public class PackSelectionScreen extends Screen {
       this.populateLists();
       this.ticksToReload = 0L;
       this.packIcons.clear();
+   }
+
+   private void importPackFile(FileChooserResult param0) {
+      String var2 = param0.fileName;
+      if (var2 == null || param0.fileData == null) {
+         return;
+      }
+
+      int var3 = Math.max(var2.lastIndexOf('/'), var2.lastIndexOf('\\'));
+      if (var3 >= 0) {
+         var2 = var2.substring(var3 + 1);
+      }
+
+      if (var2.isEmpty()) {
+         return;
+      }
+
+      if (var2.equals(".") || var2.equals("..") || var2.indexOf(':') >= 0 || var2.indexOf('\0') >= 0) {
+         LOGGER.warn("Ignoring resource pack with an unsafe file name: '{}'", var2);
+         SystemToast.onPackCopyFailure(this.minecraft, var2);
+         return;
+      }
+
+      if (!var2.toLowerCase(Locale.ROOT).endsWith(".zip")) {
+         LOGGER.warn("Ignoring dropped resource pack '{}': only .zip packs can be imported", var2);
+         SystemToast.onPackCopyFailure(this.minecraft, var2);
+         return;
+      }
+
+      try {
+         Files.createDirectories(this.packDir);
+         Files.write(this.packDir.resolve(var2), param0.fileData);
+         LOGGER.info("Imported resource pack '{}' ({} bytes)", var2, param0.fileData.length);
+         this.reload();
+      } catch (IOException var4) {
+         LOGGER.warn("Failed to import resource pack '{}'", var2, var4);
+         SystemToast.onPackCopyFailure(this.minecraft, var2);
+      }
    }
 
    @Override

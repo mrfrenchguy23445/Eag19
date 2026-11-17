@@ -276,9 +276,72 @@ function initializePlatfApplication(applicationImports) {
 		return res;
 	};
 
+	/**
+	 * Files dropped onto the page, waiting to be handed to the Java side one at a time through
+	 * the same result slot the file chooser uses.
+	 * @type {Array<File>}
+	 */
+	var droppedPackQueue = [];
+
+	/**
+	 * Hands one queued file at a time to the game. fileChooserHasResult is only set once Java has
+	 * consumed the previous result, otherwise a fast drop could overwrite a pack before the
+	 * resource pack screen's tick() reads it.
+	 */
+	function pumpDroppedPackFiles() {
+		if(droppedPackQueue.length === 0) {
+			return;
+		}
+		if(fileChooserHasResult || fileChooserResultObject !== null) {
+			window.setTimeout(pumpDroppedPackFiles, 100);
+			return;
+		}
+		const file = droppedPackQueue.shift();
+		file.arrayBuffer().then(function(arr) {
+			fileChooserHasResult = true;
+			fileChooserResultObject = {
+				"fileName": file.name,
+				"fileData": arr
+			};
+			window.setTimeout(pumpDroppedPackFiles, 100);
+		}).catch(function() {
+			eagError("Failed to read dropped resource pack!");
+			window.setTimeout(pumpDroppedPackFiles, 100);
+		});
+	}
+
+	/**
+	 * @param {FileList} files
+	 */
+	function queueDroppedPackFiles(files) {
+		if(!files) {
+			return;
+		}
+		for(var i = 0; i < files.length; ++i) {
+			const file = files[i];
+			if(file && typeof file.name === "string" && /\.zip$/i.test(file.name)) {
+				droppedPackQueue.push(file);
+			}
+		}
+		pumpDroppedPackFiles();
+	}
+
+	// Without preventDefault the browser navigates to the dropped file instead of letting the
+	// game see it, which is why drag-and-drop never reached Screen.onFilesDrop before.
+	document.addEventListener("dragover", function(evt) {
+		evt.preventDefault();
+	});
+	document.addEventListener("drop", function(evt) {
+		evt.preventDefault();
+		if(evt.dataTransfer) {
+			queueDroppedPackFiles(evt.dataTransfer.files);
+		}
+	});
+
 	function clearFileChooserResultImpl() {
 		fileChooserHasResult = false;
 		fileChooserResultObject = null;
+		droppedPackQueue.length = 0;
 		if(fileChooserMobileElement !== null) {
 			parentElement.removeChild(fileChooserMobileElement);
 			fileChooserMobileElement = null;

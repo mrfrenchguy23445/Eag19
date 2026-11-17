@@ -223,13 +223,6 @@ public class ThreadedLevelLightEngine extends LevelLightEngine implements AutoCl
    }
 
    private void runUpdate() {
-      // ============ Starlight instrumentation (Phase C, step 1: measure first) =
-      // Nanosecond bill of every light batch, split into task runnables
-      // (PRE/POST_UPDATE) and the actual graph BFS (super.runUpdates), logged
-      // per interval of light *activity* (idle wall time is skipped, so the
-      // number read directly as "light engine cost while generating"). If the
-      // BFS share is small after this lands, a full Starlight port is off.
-      long l_nanos_start = System.nanoTime();
       int var1 = Math.min(this.lightTasks.size(), this.taskPerBatch);
       ObjectListIterator<Pair<ThreadedLevelLightEngine.TaskType, Runnable>> var2 = this.lightTasks.iterator();
 
@@ -242,9 +235,7 @@ public class ThreadedLevelLightEngine extends LevelLightEngine implements AutoCl
       }
 
       var2.back(var3);
-      long l_nanos_bfs = System.nanoTime();
       super.runUpdates(Integer.MAX_VALUE, true, true);
-      long l_nanos_afterbfs = System.nanoTime();
 
       for (int var5 = 0; var2.hasNext() && var5 < var1; var5++) {
          Pair<ThreadedLevelLightEngine.TaskType, Runnable> var4 = var2.next();
@@ -254,36 +245,7 @@ public class ThreadedLevelLightEngine extends LevelLightEngine implements AutoCl
 
          var2.remove();
       }
-
-      long l_nanos_end = System.nanoTime();
-      lightDiagBatches++;
-      lightDiagBatchNanos += l_nanos_end - l_nanos_start;
-      lightDiagBfsNanos += l_nanos_afterbfs - l_nanos_bfs;
-      lightDiagReport();
    }
-
-   private static long lightDiagBatchNanos = 0L;
-   private static long lightDiagBfsNanos = 0L;
-   private static int lightDiagBatches = 0;
-   private static long lightDiagWindowStart = System.nanoTime();
-
-   private static void lightDiagReport() {
-      long l_now = System.nanoTime();
-      if (l_now - lightDiagWindowStart >= 5000000000L) {
-         if (lightDiagBatches > 0) {
-            net.lax1dude.eaglercraft.v1_8.log4j.LogManager.getLogger("Diag").info("{}",
-               "LightEngine: " + lightDiagBatches + " batches in last " + (l_now - lightDiagWindowStart) / 1000000
-                  + " ms wall: tasks=" + (lightDiagBatchNanos - lightDiagBfsNanos) / 1000000
-                  + " ms, BFS=" + lightDiagBfsNanos / 1000000 + " ms" + " (total="
-                  + lightDiagBatchNanos / 1000000 + " ms)");
-         }
-         lightDiagWindowStart = l_now;
-         lightDiagBatchNanos = 0L;
-         lightDiagBfsNanos = 0L;
-         lightDiagBatches = 0;
-      }
-   }
-   // ===================== end Starlight instrumentation =====================
 
    public void setTaskPerBatch(int param0) {
       this.taskPerBatch = param0;

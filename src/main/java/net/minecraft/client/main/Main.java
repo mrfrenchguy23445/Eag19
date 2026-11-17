@@ -18,7 +18,6 @@ import net.minecraft.client.User;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.util.NativeModuleLister;
-import net.lax1dude.eaglercraft.v1_8.BootDiag;
 
 
 public class Main {
@@ -48,7 +47,6 @@ public class Main {
     * input setup). It does not return until the game exits.</p>
     */
    public static void appMain() {
-      BootDiag.probe("Main.appMain() entered");
       EaglerProfile.loadFromStorage();
 
       User user = new User(

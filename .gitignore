@@ -35,7 +35,25 @@ bin
 scripts/__pycache__/
 /teavm-patches/out/
 
-target_teavm_wasm_gc/
+# Patcher release inputs and generated bundles
+/patcher/dist/
+/patcher/out/
+/patcher/**/__pycache__/
+/patcher/**/*.pyc
+/patcher/base-source/client.jar
+/patcher/base-source/client.txt
+/patcher/base-source/SpecialSource-*.jar
+/patcher/base-source/vineflower-*.jar
+*.zip
+
+/target_teavm_wasm_gc/build/
+/target_teavm_wasm_gc/sounds-cache/
+/target_teavm_wasm_gc/javascript/classes.wasm
+/target_teavm_wasm_gc/javascript/classes.wasm.teadbg
+/target_teavm_wasm_gc/javascript/eagruntime.js
+/target_teavm_wasm_gc/javascript/*.epk
+/target_teavm_wasm_gc/javascript/epw_*.txt
+/target_teavm_wasm_gc/javascript/wasm-gc/
 target/
 build/
 .gradle/

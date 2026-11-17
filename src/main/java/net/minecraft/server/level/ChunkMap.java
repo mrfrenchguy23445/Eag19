@@ -650,7 +650,7 @@ public class ChunkMap extends ChunkStorage implements ChunkHolder.PlayerProvider
                   this.progressListener.onStatusChange(var3, param1);
                   return l2_var6;
                } catch (Exception l2_var6) {
-                  l2_var6.getStackTrace();
+                  LOGGER.error("Exception generating new chunk " + var3 + " at status " + param1, l2_var6);
                   CrashReport l2_var7 = CrashReport.forThrowable(l2_var6, "Exception generating new chunk");
                   CrashReportCategory l2_var8 = l2_var7.addCategory("Chunk to be generated");
                   l2_var8.setDetail("Location", String.format(Locale.ROOT, "%d,%d", var3.x, var3.z));

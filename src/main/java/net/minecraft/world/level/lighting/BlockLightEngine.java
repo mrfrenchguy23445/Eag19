@@ -15,6 +15,9 @@ import org.apache.commons.lang3.mutable.MutableInt;
 public final class BlockLightEngine extends LayerLightEngine<BlockLightSectionStorage.BlockDataLayerStorageMap, BlockLightSectionStorage> {
    private static final Direction[] DIRECTIONS = Direction.values();
    private final BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+   // See SkyLightEngine.opacity: reused to keep the propagation inner loop
+   // allocation-free.
+   private final MutableInt opacity = new MutableInt();
 
    public BlockLightEngine(LightChunkGetter param0) {
       super(param0, LightLayer.BLOCK, new BlockLightSectionStorage(param0));
@@ -50,16 +53,15 @@ public final class BlockLightEngine extends LayerLightEngine<BlockLightSectionSt
          return 15;
       }
 
-      MutableInt var10 = new MutableInt();
-      BlockState var11 = this.getStateAndOpacity(param2, var10);
-      if (var10.getValue() >= 15) {
+      BlockState var11 = this.getStateAndOpacity(param2, this.opacity);
+      if (this.opacity.getValue() >= 15) {
          return 15;
       }
 
       BlockState var12 = this.getStateAndOpacity(param0, null);
       VoxelShape var13 = this.getShape(var12, param0, var9);
       VoxelShape var14 = this.getShape(var11, param2, var9.getOpposite());
-      return Shapes.faceShapeOccludes(var13, var14) ? 15 : param4 + Math.max(1, var10.getValue());
+      return Shapes.faceShapeOccludes(var13, var14) ? 15 : param4 + Math.max(1, this.opacity.getValue());
    }
 
    @Override

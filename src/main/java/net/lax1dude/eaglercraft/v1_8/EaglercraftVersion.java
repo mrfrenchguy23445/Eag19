@@ -8,17 +8,17 @@ public class EaglercraftVersion {
 
     /// Customize these to fit your fork:
 
-    public static final String projectForkName = "Eaglercraft 1.14.4";
-    public static final String projectForkVersion = "u1 pre-release";
-    public static final String projectForkVendor = "EymenWSMC";
+    public static final String projectForkName = "BetterEagler";
+    public static final String projectForkVersion = "u27";
+    public static final String projectForkVendor = "XxZixiaxX";
 
-    public static final String projectForkURL = "";
+    public static final String projectForkURL = "https://github.com/XxFluffyAsherxX/Eaglercraft-1.19";
 
     /// ///////////////////////////////////////////////////////////////////
 
-    public static final String projectOriginName = "Eaglercraft 1.14.4";
-    public static final String projectOriginAuthor = "EymenWSMC";
-    public static final String projectOriginVersion = "u1 pre-release";
+    public static final String projectOriginName = "Eaglercraft 1.19";
+    public static final String projectOriginAuthor = "XxZixiaxX";
+    public static final String projectOriginVersion = "u27";
     public static final String projectOriginServerVersion = "";
 
     public static final String projectOriginURL = "";

@@ -2,6 +2,7 @@ package net.minecraft.world.level.chunk;
 
 import com.google.common.base.Suppliers;
 import com.mojang.datafixers.util.Pair;
+import com.mojang.logging.LogUtils;
 import com.mojang.serialization.Codec;
 import it.unimi.dsi.fastutil.ints.IntArraySet;
 import it.unimi.dsi.fastutil.ints.IntSet;
@@ -75,8 +76,10 @@ import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStruct
 import net.minecraft.world.level.levelgen.structure.placement.StructurePlacement;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 import org.apache.commons.lang3.mutable.MutableBoolean;
+import org.slf4j.Logger;
 
 public abstract class ChunkGenerator {
+   private static final Logger LOGGER = LogUtils.getLogger();
    public static final Codec<ChunkGenerator> CODEC = BuiltInRegistries.CHUNK_GENERATOR.byNameCodec().dispatchStable(ChunkGenerator::codec, Function.identity());
    protected final BiomeSource biomeSource;
    private final Supplier<List<FeatureSorter.StepFeatureData>> featuresPerStep;
@@ -337,9 +340,7 @@ public abstract class ChunkGenerator {
                               l_start.placeInChunk(param0, param2, this, var10, getWritableArea(param1), var4);
                            }
                         } catch (Exception var23) {
-                           CrashReport var24 = CrashReport.forThrowable(var23, "Feature placement");
-                           var24.addCategory("Feature").setDetail("Description", var22::get);
-                           throw new ReportedException(var24);
+                           skipBrokenFeature(var4, "structure", var22, var23);
                         }
 
                         var18++;
@@ -378,9 +379,7 @@ public abstract class ChunkGenerator {
                         param0.setCurrentlyGenerating(var26);
                         var25.placeWithBiomeCheck(param0, this, var10, var6);
                      } catch (Exception var27) {
-                        CrashReport var28 = CrashReport.forThrowable(var27, "Feature placement");
-                        var28.addCategory("Feature").setDetail("Description", var26::get);
-                        throw new ReportedException(var28);
+                        skipBrokenFeature(var4, "feature", var26, var27);
                      }
                   }
                }
@@ -388,12 +387,38 @@ public abstract class ChunkGenerator {
 
             param0.setCurrentlyGenerating(null);
          } catch (Exception var15) {
-            CrashReport var16 = CrashReport.forThrowable(var15, "Biome decoration");
-            var16.addCategory("Generation").setDetail("CenterX", var4.x).setDetail("CenterZ", var4.z).setDetail("Seed", var11);
-            throw new ReportedException(var16);
+            // See skipBrokenFeature: a decoration failure must never complete the
+            // chunk future exceptionally or world generation deadlocks for good.
+            skipBrokenFeature(var4, "biome decoration", () -> "chunk " + var4.x + "," + var4.z, var15);
          }
       }
    }
+
+   /**
+    * Reports a feature/structure placement failure and continues generating the
+    * chunk without it.
+    *
+    * <p>Vanilla rethrows these as {@link ReportedException}; on this cooperative
+    * wasm build the exceptional future is then stored in
+    * {@code ChunkHolder.futures[status]} and every chunk that depends on it waits
+    * forever. The symptom is a permanent "Preparing spawn area" freeze with all
+    * task queues empty. Losing one decorative feature is vastly preferable.
+    */
+   private static void skipBrokenFeature(ChunkPos pos, String kind, Supplier<String> description, Throwable cause) {
+      int n = FEATURE_FAILURES.incrementAndGet();
+      if (n > 25 && n % 100 != 0) {
+         return;
+      }
+      String what;
+      try {
+         what = description.get();
+      } catch (Throwable ignored) {
+         what = "<unknown>";
+      }
+      LOGGER.error("[worldgen] skipped " + kind + " " + what + " at chunk " + pos.x + "," + pos.z + " (failure #" + n + ")", cause);
+   }
+
+   private static final java.util.concurrent.atomic.AtomicInteger FEATURE_FAILURES = new java.util.concurrent.atomic.AtomicInteger();
 
    private static BoundingBox getWritableArea(ChunkAccess param0) {
       ChunkPos var1 = param0.getPos();

@@ -16,7 +16,6 @@ import java.util.zip.ZipFile;
 import javax.annotation.Nullable;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.IoSupplier;
-import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 
 public class FilePackResources extends AbstractPackResources {
@@ -115,7 +114,14 @@ public class FilePackResources extends AbstractPackResources {
    @Override
    public void close() {
       if (this.zipFile != null) {
-         IOUtils.closeQuietly(this.zipFile);
+         // TeaVM's java.util.zip.ZipFile does not implement java.io.Closeable, so routing it
+         // through IOUtils.closeQuietly(Closeable) throws an illegal cast in WASM-GC. Close the
+         // concrete type directly instead.
+         try {
+            this.zipFile.close();
+         } catch (IOException var1) {
+            LOGGER.warn("Failed to close pack {}", this.file, var1);
+         }
          this.zipFile = null;
       }
    }

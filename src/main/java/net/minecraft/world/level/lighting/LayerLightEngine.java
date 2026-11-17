@@ -35,6 +35,17 @@ public abstract class LayerLightEngine<M extends DataLayerStorageMap<M>, S exten
    private static final int CACHE_SIZE = 4;
    private final long[] lastChunkPos = new long[CACHE_SIZE];
    private final BlockGetter[] lastChunk = new BlockGetter[CACHE_SIZE];
+   // A single-entry block-state cache for the propagation source. getComputedLevel()
+   // asks computeLevelFromNeighbor() about all six neighbours in a row, and every one
+   // of those calls re-reads the block state of the same center position. A chunk
+   // lookup + palette decode + light-block/shape query per edge is the dominant cost
+   // of the BFS, so one slot removes ~6/7 of those reads. The cache is dropped at
+   // the start of every checkBlock and every BFS batch, so a block edit can never be
+   // observed through a stale entry.
+   private long cachedStatePos = Long.MAX_VALUE;
+   private BlockState cachedState = Blocks.AIR.defaultBlockState();
+   private int cachedStateOpacity;
+   private boolean suppressStorageFlush;
 
    public LayerLightEngine(LightChunkGetter param0, LightLayer param1, S param2) {
       super(16, 256, 8192);
@@ -46,7 +57,10 @@ public abstract class LayerLightEngine<M extends DataLayerStorageMap<M>, S exten
 
    @Override
    protected void checkNode(long param0) {
-      this.storage.runAllUpdates();
+      if (!this.suppressStorageFlush) {
+         this.storage.runAllUpdates();
+      }
+
       if (this.storage.storingLightForSection(SectionPos.blockToSection(param0))) {
          super.checkNode(param0);
       }
@@ -80,33 +94,53 @@ public abstract class LayerLightEngine<M extends DataLayerStorageMap<M>, S exten
    }
 
    protected BlockState getStateAndOpacity(long param0, @Nullable MutableInt param2) {
-      if (param0 == Long.MAX_VALUE) {
+      if (param0 == this.cachedStatePos) {
          if (param2 != null) {
-            param2.setValue(0);
+            param2.setValue(this.cachedStateOpacity);
          }
 
-         return Blocks.AIR.defaultBlockState();
+         return this.cachedState;
+      }
+
+      BlockState var7;
+      int var9;
+      if (param0 == Long.MAX_VALUE) {
+         var9 = 0;
+         var7 = Blocks.AIR.defaultBlockState();
       } else {
          int var4 = SectionPos.blockToSectionCoord(BlockPos.getX(param0));
          int var5 = SectionPos.blockToSectionCoord(BlockPos.getZ(param0));
          BlockGetter var6 = this.getChunk(var4, var5);
          if (var6 == null) {
-            if (param2 != null) {
-               param2.setValue(16);
-            }
-
-            return Blocks.BEDROCK.defaultBlockState();
+            var9 = 16;
+            var7 = Blocks.BEDROCK.defaultBlockState();
          } else {
             this.pos.set(param0);
-            BlockState var7 = var6.getBlockState(this.pos);
-            boolean var8 = var7.canOcclude() && var7.useShapeForLightOcclusion();
-            if (param2 != null) {
-               param2.setValue(var7.getLightBlock(this.chunkSource.getLevel(), this.pos));
-            }
-
-            return var8 ? var7 : Blocks.AIR.defaultBlockState();
+            BlockState var8 = var6.getBlockState(this.pos);
+            boolean var10 = var8.canOcclude() && var8.useShapeForLightOcclusion();
+            var9 = var8.getLightBlock(this.chunkSource.getLevel(), this.pos);
+            var7 = var10 ? var8 : Blocks.AIR.defaultBlockState();
          }
       }
+
+      this.cachedStatePos = param0;
+      this.cachedState = var7;
+      this.cachedStateOpacity = var9;
+      if (param2 != null) {
+         param2.setValue(var9);
+      }
+
+      return var7;
+   }
+
+   /** Drops the cached source state; called whenever positions may have changed. */
+   protected final void invalidateCachedState() {
+      this.cachedStatePos = Long.MAX_VALUE;
+      // Long.MAX_VALUE is also the SELF_SOURCE sentinel, so the slot must hold the
+      // sentinel's answer (air, no opacity) rather than whatever block was cached
+      // before the invalidation.
+      this.cachedState = Blocks.AIR.defaultBlockState();
+      this.cachedStateOpacity = 0;
    }
 
    protected VoxelShape getShape(BlockState param0, long param1, Direction param3) {
@@ -166,6 +200,7 @@ public abstract class LayerLightEngine<M extends DataLayerStorageMap<M>, S exten
 
    @Override
    public int runUpdates(int param0, boolean param1, boolean param2) {
+      this.invalidateCachedState();
       if (!this.runningLightUpdates) {
          if (this.storage.hasWork()) {
             param0 = this.storage.runUpdates(param0);
@@ -212,11 +247,24 @@ public abstract class LayerLightEngine<M extends DataLayerStorageMap<M>, S exten
 
    @Override
    public void checkBlock(BlockPos param0) {
-      long var2 = param0.asLong();
-      this.checkNode(var2);
+      // The state cache must never survive a block edit. This is also the only
+      // place where vanilla can see a changed block, so it doubles as the
+      // invalidation point for the whole engine.
+      this.invalidateCachedState();
+      // Vanilla flushes queued section data once per checkNode(), i.e. seven
+      // times for one block edit. One flush is enough for the whole edit.
+      this.storage.runAllUpdates();
+      this.suppressStorageFlush = true;
 
-      for (Direction var7 : DIRECTIONS) {
-         this.checkNode(BlockPos.offset(var2, var7));
+      try {
+         long var2 = param0.asLong();
+         this.checkNode(var2);
+
+         for (Direction var7 : DIRECTIONS) {
+            this.checkNode(BlockPos.offset(var2, var7));
+         }
+      } finally {
+         this.suppressStorageFlush = false;
       }
    }
 
@@ -226,6 +274,9 @@ public abstract class LayerLightEngine<M extends DataLayerStorageMap<M>, S exten
 
    @Override
    public void updateSectionStatus(SectionPos param0, boolean param1) {
+      // A section appearing or disappearing can change which chunk backs a
+      // position, so the cached source state cannot outlive it.
+      this.invalidateCachedState();
       this.storage.updateSectionStatus(param0.asLong(), param1);
    }
 

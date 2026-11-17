@@ -47,6 +47,9 @@ public class EaglercraftHandshaker {
     private static final int PROTOCOL_V4 = 4;
     private static final int PROTOCOL_V5 = 5;
 
+    /** REDIRECT | NOTIFICATION | PAUSE_MENU, matching the reference client. */
+    private static final int CLIENT_CAPABILITIES = 0x1C;
+
     private static final int STATE_SEND_VERSION = 0;
     private static final int STATE_AWAIT_VERSION = 1;
     private static final int STATE_AWAIT_LOGIN = 2;
@@ -298,7 +301,14 @@ public class EaglercraftHandshaker {
         }
 
         if (protocolVersion >= PROTOCOL_V5) {
-            buffer.writeVarInt(0);
+            // Advertise the same standard capabilities the reference 1.19.4
+            // client does: REDIRECT (2), NOTIFICATION (3) and PAUSE_MENU (4),
+            // each at capability version 1. Sending zero made some proxies
+            // treat the client as a bare-bones 1.8 client.
+            buffer.writeVarInt(CLIENT_CAPABILITIES);
+            buffer.writeByte(1);
+            buffer.writeByte(1);
+            buffer.writeByte(1);
             buffer.writeByte(0);
         }
 

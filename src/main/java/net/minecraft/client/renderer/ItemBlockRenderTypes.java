@@ -348,14 +348,20 @@ public class ItemBlockRenderTypes {
       }
    }
 
+   /**
+    * WASM-GC PORT: {@code RenderType.entityTranslucentCull} and
+    * {@code RenderType.itemEntityTranslucentCull} upload a sorted index buffer
+    * ({@code sortOnUpload = true}). Those batches came out blank on the WebGL
+    * backend, which made every "flat" item icon invisible: creative menu entries,
+    * the hotbar, the held item and dropped items. Block-shaped items were fine
+    * because they already use the cutout sheet.
+    *
+    * <p>Cutout draws the same baked item quads from the same block atlas, so item
+    * stacks use it unconditionally. Translucent *blocks* still keep their vanilla
+    * render type, and the water/ice chunk layers do not go through this path.
+    */
    public static RenderType getRenderType(ItemStack param0, boolean param1) {
-      Item var2 = param0.getItem();
-      if (var2 instanceof BlockItem) {
-         Block var3 = ((BlockItem)var2).getBlock();
-         return getRenderType(var3.defaultBlockState(), param1);
-      } else {
-         return param1 ? Sheets.translucentCullBlockSheet() : Sheets.translucentItemSheet();
-      }
+      return Sheets.cutoutBlockSheet();
    }
 
    public static RenderType getRenderLayer(FluidState param0) {

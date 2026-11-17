@@ -1,0 +1,52 @@
+# Tracked paths copied into the distributable project skeleton.
+# Minecraft-derived Java is absent: the patch bundle reconstructs
+# src/main/java/net/minecraft and com/mojang/{blaze3d,realmsclient,math}
+# from the base tree supplied by whoever runs the patcher.
+.gitattributes
+.gitignore
+.github
+build.gradle.kts
+settings.gradle.kts
+gradle.properties
+gradlew
+gradlew.bat
+gradle/libs.versions.toml
+gradle/wrapper
+gradle/local-libs
+jdk-shims
+teavm-patches
+scripts
+patcher
+bridge
+desktopRuntime
+sites-web/public
+src/lwjgl
+target_lwjgl_desktop
+target_teavm_javascript
+target_teavm_wasm_gc
+src/platform-api
+src/platform-shim
+src/protocol-game
+src/protocol-relay
+src/teavm
+src/teavm-boot-menu
+src/teavmc-classpath
+src/wasm-gc-teavm
+src/wasm-gc-teavm-bootstrap
+src/wasm-gc-teavm-loader
+src/main/java/net/lax1dude
+src/main/java/net/optifine
+src/main/java/com/google
+src/main/java/com/mojang/logging
+src/main/java/org/joml
+src/main/java/org/slf4j
+src/main/java/org/json
+src/main/java/jdk_internal
+src/main/java/dev/redstudio
+src/main/java/me/jellysquid
+README.md
+LICENSE
+SERVER.md
+MOD_PORT_PLAN.md
+OFFLINE.md
+SINGLEPLAYER.md

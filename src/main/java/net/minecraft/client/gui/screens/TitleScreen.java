@@ -176,15 +176,16 @@ public class TitleScreen extends Screen {
       );
       this.singleplayerButton.active = true;
       Component var3 = this.getMultiplayerDisabledReason();
-      // Cooperative-port UI decision: multiplayer is permanently unavailable in this
-      // deployment - force-inactive so the button always renders dimmed (dark) and
-      // cannot be clicked, regardless of allowsMultiplayer().
-      this.addRenderableWidget(Button.builder(Component.translatable("menu.multiplayer"), l_param0 -> {
+      Button multiplayerButton = Button.builder(Component.translatable("menu.multiplayer"), l_param0 -> {
          Screen l_var2 = this.minecraft.options.skipMultiplayerWarning ? new JoinMultiplayerScreen(this) : new SafetyScreen(this);
          this.minecraft.setScreen(l_var2);
       }).bounds(this.width / 2 - 100, param0 + param1 * 1, 200, 20).tooltip(
-         Tooltip.create(var3 != null ? var3 : Component.translatable("title.multiplayer.disabled"))
-      ).build()).active = false;
+         var3 != null ? Tooltip.create(var3) : null
+      ).build();
+      // Enable whenever the client is allowed to play online: the offline user API
+      // grants SERVERS_ALLOWED, so this is normally true and the button is clickable.
+      multiplayerButton.active = this.minecraft.allowsMultiplayer();
+      this.addRenderableWidget(multiplayerButton);
       this.addRenderableWidget(
          Button.builder(Component.literal("Credits"), l_param0 -> this.minecraft.setScreen(new CreditsScreen(this)))
             .bounds(this.width / 2 - 100, param0 + param1 * 2, 200, 20)
