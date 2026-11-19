@@ -119,7 +119,8 @@ const runtimeOpts = {
 	forceWebGL2: false,
 	allowExperimentalWebGL1: true,
 	useWebGLExt: true,
-	useDelayOnSwap: false
+	useDelayOnSwap: false,
+	disableAudio: true
 };
 
 function setupRuntimeOpts() {
@@ -133,6 +134,7 @@ function setupRuntimeOpts() {
 	if(typeof eaglercraftXOpts["allowExperimentalWebGL1"] === "boolean") runtimeOpts.allowExperimentalWebGL1 = eaglercraftXOpts["allowExperimentalWebGL1"];
 	if(typeof eaglercraftXOpts["useWebGLExt"] === "boolean") runtimeOpts.useWebGLExt = eaglercraftXOpts["useWebGLExt"];
 	if(typeof eaglercraftXOpts["useDelayOnSwap"] === "boolean") runtimeOpts.useDelayOnSwap = eaglercraftXOpts["useDelayOnSwap"];
+	if(typeof eaglercraftXOpts["disableAudio"] === "boolean") runtimeOpts.disableAudio = eaglercraftXOpts["disableAudio"];
 }
 
 /**
@@ -225,6 +227,9 @@ async function initializeContext() {
 	var audioCtx = null;
 	
 	const createAudioContext = function() {
+		if(runtimeOpts.disableAudio) {
+			return;
+		}
 		try {
 			audioCtx = new AudioContext();
 		}catch(ex) {

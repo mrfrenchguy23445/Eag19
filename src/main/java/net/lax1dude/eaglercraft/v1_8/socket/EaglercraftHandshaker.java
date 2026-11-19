@@ -70,6 +70,7 @@ public class EaglercraftHandshaker {
 
     private int state = STATE_SEND_VERSION;
     private int protocolVersion;
+    private int selectedGameProtocol = EaglerProtocolBridge.CLIENT_GAME_PROTOCOL;
     private boolean nicknameSelection = true;
     private String pluginBrand = "";
     private String pluginVersion = "";
@@ -197,11 +198,21 @@ public class EaglercraftHandshaker {
         buffer.writeByte(HandshakePacketTypes.PROTOCOL_CLIENT_VERSION);
         buffer.writeByte(2);
         buffer.writeShort(3);
-        buffer.writeShort(PROTOCOL_V3);
-        buffer.writeShort(PROTOCOL_V4);
         buffer.writeShort(PROTOCOL_V5);
-        buffer.writeShort(1);
-        buffer.writeShort(GAME_PROTOCOL_VERSION);
+        buffer.writeShort(PROTOCOL_V4);
+        buffer.writeShort(PROTOCOL_V3);
+
+        if (EaglerProtocolBridge.isAvailable()) {
+            // The V5 port lets the proxy pick a wire protocol we can translate
+            // client-side. 764 fixes the vanilla login-start UUID mismatch on
+            // modern Bungee; 758 is kept as the ViaVersion fallback path.
+            buffer.writeShort(2);
+            buffer.writeShort(EaglerProtocolBridge.SERVER_GAME_PROTOCOL_1_20_2);
+            buffer.writeShort(EaglerProtocolBridge.SERVER_GAME_PROTOCOL_1_18_2);
+        } else {
+            buffer.writeShort(1);
+            buffer.writeShort(GAME_PROTOCOL_VERSION);
+        }
 
         String clientBrand = EaglercraftVersion.projectForkName;
         buffer.writeByte(clientBrand.length());
@@ -232,12 +243,18 @@ public class EaglercraftHandshaker {
         }
 
         int gameVers = buffer.readUnsignedShort();
-        if (gameVers != GAME_PROTOCOL_VERSION) {
+        if (EaglerProtocolBridge.isAvailable()) {
+            if (!EaglerProtocolBridge.supportsServerProtocol(gameVers)) {
+                fail(Component.literal("This server does not support a compatible game protocol!"));
+                return;
+            }
+        } else if (gameVers != GAME_PROTOCOL_VERSION) {
             fail(Component.literal("This server does not support 1.19.4!"));
             return;
         }
 
         protocolVersion = version;
+        selectedGameProtocol = gameVers;
 
         int msgLen = buffer.readUnsignedByte();
         byte[] dat = new byte[msgLen];
@@ -420,8 +437,17 @@ public class EaglercraftHandshaker {
         websocket.setEnableStringFrames(false);
         websocket.clearStringFrames();
 
+        UUID profileId = new UUID(loggedInUUID.msb, loggedInUUID.lsb);
+        if (EaglerProtocolBridge.isAvailable()) {
+            LOGGER.info("Eaglercraft protocol bridge: translating {} <-> {}", GAME_PROTOCOL_VERSION, selectedGameProtocol);
+            if (!EaglerProtocolBridge.initialize(loggedInUsername, profileId, GAME_PROTOCOL_VERSION, selectedGameProtocol)) {
+                fail(Component.literal("Failed to initialize the client-side protocol bridge"));
+                return;
+            }
+        }
+
         connection.setProtocol(ConnectionProtocol.PLAY);
-        GameProfile profile = new GameProfile(new UUID(loggedInUUID.msb, loggedInUUID.lsb), loggedInUsername);
+        GameProfile profile = new GameProfile(profileId, loggedInUsername);
         connection.setListener(new ClientPacketListener(minecraft, parent, connection, serverData, profile,
                 minecraft.getTelemetryManager().createWorldSessionManager(false, null)));
     }

@@ -76,7 +76,9 @@ public final class FieldAttributes {
    * @return the specific type declared for this field
    */
   public Type getDeclaredType() {
-    return field.getGenericType();
+    // The WASM-GC classlib does not model Field.getGenericType(); the erased
+    // declaration is the only type information available on this target.
+    return field.getType();
   }
 
   /**

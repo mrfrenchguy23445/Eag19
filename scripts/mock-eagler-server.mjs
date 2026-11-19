@@ -30,7 +30,13 @@ const PORT = Number(process.argv[2] || 8080);
 
 const GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 const HANDSHAKE_PROTOCOL = 5;
-const GAME_PROTOCOL = 762;
+const GAME_PROTOCOL = 764;
+// 762 is the no-translator fallback; 758/764 are the maintainer-local Via paths.
+// EAGLER_GAME_PROTOCOLS=758 can force one path during browser verification.
+const SUPPORTED_GAME_PROTOCOLS = (process.env.EAGLER_GAME_PROTOCOLS || "762,758,764")
+	.split(",")
+	.map((value) => Number(value.trim()))
+	.filter((value) => Number.isFinite(value));
 const BRAND = "EaglercraftXServer";
 const PLUGIN_VERSION = "1.1.1";
 
@@ -261,16 +267,29 @@ function handleUpgrade(req, socket) {
 				//   [0] 0x01
 				//   [1] 2  (protocol groups)
 				//   [2..3] u16 3 (count), then u16 3, u16 4, u16 5
-				//   [10..11] u16 1 (game count), then u16 762
-				//   [14] brand length ...
+				//   [10..11] u16 game count, then that many u16 game protocols
+				//   then brand length ...
 				const versions = data.readUInt16BE(2);
 				const client = {
 					brand: "?",
 					vers: "?",
 					name: "?"
 				};
+				let selectedGameProtocol = GAME_PROTOCOL;
 				try {
-					let p = 14;
+					let p = 10;
+					const gameCount = data.readUInt16BE(p);
+					p += 2;
+					const advertised = [];
+					for (let i = 0; i < gameCount; i++) {
+						advertised.push(data.readUInt16BE(p));
+						p += 2;
+					}
+					const common = advertised.filter((v) => SUPPORTED_GAME_PROTOCOLS.includes(v));
+					if (common.length) {
+						selectedGameProtocol = Math.max(...common);
+					}
+					log("advertised game protocols: " + advertised.join(", "));
 					const brandLen = data[p++];
 					client.brand = data.subarray(p, p + brandLen).toString("ascii");
 					p += brandLen;
@@ -292,13 +311,15 @@ function handleUpgrade(req, socket) {
 						" vers=" +
 						client.vers +
 						" user=" +
-						state.username
+						state.username +
+						" selectedGameProtocol=" +
+						selectedGameProtocol
 				);
 				sendBinary(
 					Buffer.concat([
 						u8(0x02),
 						u16(HANDSHAKE_PROTOCOL),
-						u16(GAME_PROTOCOL),
+						u16(selectedGameProtocol),
 						u8(BRAND.length),
 						ascii(BRAND),
 						u8(PLUGIN_VERSION.length),

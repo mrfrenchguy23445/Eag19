@@ -8,7 +8,10 @@
  * eagruntime.js and the splash images are embedded as base64 and decoded in the
  * page. The result opens straight from file:// with no server and no network.
  *
- * Usage: node scripts/make-offline-html.mjs [--no-sounds] [--out <path>]
+ * Silent builds are the default. Pass --sounds only if you explicitly want the
+ * 98 MiB sound pack embedded again.
+ *
+ * Usage: node scripts/make-offline-html.mjs [--sounds] [--out <path>]
  */
 
 import fs from 'node:fs';
@@ -19,7 +22,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const js = path.join(root, 'target_teavm_wasm_gc', 'javascript');
 
 const argv = process.argv.slice(2);
-const withSounds = !argv.includes('--no-sounds');
+const withSounds = argv.includes('--sounds');
 const outIdx = argv.indexOf('--out');
 const outPath = outIdx >= 0 ? path.resolve(argv[outIdx + 1])
 	: path.join(root, 'target_teavm_wasm_gc', 'javascript_dist', 'EaglercraftX_1.19.4_WASM_Offline.html');
@@ -75,7 +78,7 @@ for (const bad of ['</script', '<!--']) {
 	}
 }
 
-const title = withSounds ? 'EaglercraftX 1.19.4 (offline)' : 'EaglercraftX 1.19.4 (offline, no sounds)';
+const title = withSounds ? 'EaglercraftX 1.19.4 (offline, with sounds)' : 'EaglercraftX 1.19.4 (offline, silent)';
 
 write(`<!DOCTYPE html>
 <html>
@@ -159,7 +162,10 @@ ${imageMap}
 	// file:// page, plain file:// URLs do not.
 	const runtimeUrl = URL.createObjectURL(new Blob([document.getElementById("eagruntime-src").textContent], { type: "text/javascript" }));
 
-	window.eagOfflineOpts = { "localStorageNamespace": "_eaglercraftX_wasm_offline" };
+	window.eagOfflineOpts = {
+		"localStorageNamespace": "_eaglercraftX_wasm_offline",
+		"disableAudio": ${withSounds ? 'false' : 'true'}
+	};
 
 	window.__eaglercraftXLoaderContext = {
 		"getEaglercraftXOpts": function() { return window.eagOfflineOpts; },
@@ -189,7 +195,7 @@ ${imageMap}
 		div.id = "eagOfflineGate";
 		div.innerHTML = '<div><h1>${title}</h1>' +
 			'<div class="go">Click to start</div>' +
-			'<div class="hint">Your browser only allows audio after a click. Everything is inside this file - no internet needed.</div></div>';
+			'<div class="hint">${withSounds ? 'Your browser only allows audio after a click.' : 'This build has no sounds. The click is still needed to start the client.'} Everything is inside this file - no internet needed.</div></div>';
 		document.body.appendChild(div);
 		div.addEventListener("click", start);
 	}

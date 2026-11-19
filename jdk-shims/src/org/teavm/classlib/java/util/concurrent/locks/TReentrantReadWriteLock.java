@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
  * caller constructs one directly, so the outer-instance field the JDK's inner classes carry
  * is dropped.
  */
-public class TReentrantReadWriteLock {
+public class TReentrantReadWriteLock implements TReadWriteLock {
 	private final TReentrantLock readLock = new TReentrantLock();
 	private final TReentrantLock writeLock = new TReentrantLock();
 	private final ReadLock readerLock = new ReadLock();

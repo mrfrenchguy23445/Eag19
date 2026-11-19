@@ -50,6 +50,7 @@ scripts/__pycache__/
 /target_teavm_wasm_gc/sounds-cache/
 /target_teavm_wasm_gc/javascript/classes.wasm
 /target_teavm_wasm_gc/javascript/classes.wasm.teadbg
+/target_teavm_wasm_gc/javascript/classes.wasm.unoptimized
 /target_teavm_wasm_gc/javascript/eagruntime.js
 /target_teavm_wasm_gc/javascript/*.epk
 /target_teavm_wasm_gc/javascript/epw_*.txt
@@ -59,3 +60,15 @@ build/
 .gradle/
 .aider*
 Eag190-offline.zip
+
+# Local-only client-side V5/Via translation.
+# ViaVersion and ViaBackwards are GPLv3, so their binaries, source archives,
+# assets and WASM-GC adaptations stay on the maintainer's machine. The repo
+# keeps only the platform-neutral EaglerProtocolBridge seam.
+/gradle/local-libs/com/viaversion/
+/gradle/local-libs/org/yaml/
+/gradle/local-libs/com/google/code/gson/gson-parent/2.8.9/
+/src/teavm/resources/assets/viaversion/
+/src/teavm/resources/assets/viabackwards/
+/src/wasm-gc-teavm/java/com/viaversion/
+/src/wasm-gc-teavm/java/net/lax1dude/eaglercraft/v1_8/socket/via/

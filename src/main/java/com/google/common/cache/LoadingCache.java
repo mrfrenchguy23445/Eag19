@@ -3,6 +3,8 @@ package com.google.common.cache;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.ImmutableMap;
@@ -209,8 +211,8 @@ public class LoadingCache<K, V> implements Cache<K, V> {
 		return new CacheStats(hitCount, missCount, loadSuccessCount, loadExceptionCount, 0L, evictionCount);
 	}
 
-	public Map<K, V> asMap() {
-		Map<K, V> view = new LinkedHashMap<>();
+	public ConcurrentMap<K, V> asMap() {
+		ConcurrentMap<K, V> view = new ConcurrentHashMap<>();
 		for (Map.Entry<K, Entry<V>> e : cacheMap.entrySet()) {
 			view.put(e.getKey(), e.getValue().value);
 		}

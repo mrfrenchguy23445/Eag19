@@ -1,7 +1,6 @@
 import com.resentclient.oss.eaglercraft.build.impl.wasm
+import java.io.File
 import org.teavm.gradle.api.OptimizationLevel
-import org.teavm.gradle.api.WasmDebugInfoLevel
-import org.teavm.gradle.api.WasmDebugInfoLocation
 
 plugins {
 	id("java")
@@ -109,12 +108,56 @@ teavm {
 		mainClass = "net.lax1dude.eaglercraft.v1_8.internal.wasm_gc_teavm.MainClass"
 		outputDir = file(wasmFolder)
 		properties = mapOf("java.util.TimeZone.autodetect" to "true")
-		debugInformation = true
-		debugInfoLocation = WasmDebugInfoLocation.EXTERNAL
-		debugInfoLevel = WasmDebugInfoLevel.DEOBFUSCATION
+		// Release compiler settings. TeaVM has no level above AGGRESSIVE, so
+		// shipping builds drop debug output and disassembly; scripts/optimize-wasm.mjs
+		// applies Binaryen -Oz afterwards when wasm-opt is available.
+		obfuscated = true
+		sourceMap = false
+		debugInformation = false
 		minDirectBuffersSize = 32
 		maxDirectBuffersSize = 512
-		disassembly = true
+		disassembly = false
+	}
+}
+
+// TeaVM resolves org.teavm.classlib.* from its own classlib jar ahead of the
+// project's runtimeClasspath, which meant the patched TFile.toPath() in
+// jdk-shims lost to the stock classlib copy. Put the shim jar first so every
+// relocated classlib override wins; it is otherwise a strict superset of the
+// same classes and adds no duplicate public API.
+//
+// The same first-wins rule applies to local WASM-safe source overrides: put
+// main output ahead of dependency jars so those replacements beat upstream
+// bytecode at link time.
+val shimJar = project(":jdk-shims").layout.buildDirectory.file("libs/jdk-shims.jar")
+val wasmOutputFile = file("$wasmFolder/$wasmOutputFileName")
+val optimizeWasmScript = rootProject.file("scripts/optimize-wasm.mjs")
+tasks.named<org.teavm.gradle.tasks.GenerateWasmGCTask>("generateWasmGC") {
+	classpath = files(shimJar) + sourceSets["main"].output + classpath
+	dependsOn(":jdk-shims:jar", "classes")
+
+	doFirst {
+		// Debug output shifts function offsets and is not shipped any more.
+		file("$wasmFolder/$wasmOutputFileName.teadbg").delete()
+		file("$wasmFolder/$wasmOutputFileName.wat").delete()
+	}
+
+	// Optional post-link size pass. Set WASM_OPT to a wasm-opt binary, or put it
+	// on PATH; without it the script leaves TeaVM's output untouched.
+	doLast {
+		val nodeName = if (System.getProperty("os.name").lowercase().contains("windows")) "node.exe" else "node"
+		val node = System.getenv("PATH").orEmpty()
+			.split(File.pathSeparator)
+			.map { file(it).resolve(nodeName) }
+			.firstOrNull { it.exists() }
+		if (node == null || !optimizeWasmScript.exists()) {
+			logger.lifecycle("wasm-opt skipped: node or scripts/optimize-wasm.mjs unavailable")
+		} else {
+			project.exec {
+				workingDir(rootProject.projectDir)
+				commandLine(node.absolutePath, optimizeWasmScript.absolutePath, wasmOutputFile.absolutePath, "--in-place")
+			}
+		}
 	}
 }
 

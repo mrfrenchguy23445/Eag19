@@ -67,9 +67,16 @@ public class PlatformAudio {
 	private static long cacheFreeTimer = 0l;
 	private static long activeFreeTimer = 0l;
 	private static boolean oggSupport = false;
+	// Release builds are silent: no sounds.epk, no AudioContext, and no hidden
+	// keep-alive <audio> element. Non-final so the rest of the method stays
+	// reachable for local audio experiments.
+	private static boolean audioEnabled = false;
 
 	static void initialize() {
 		oggSupport = false;
+		if (!audioEnabled) {
+			return;
+		}
 		
 		audioctx = getContext();
 		if(audioctx == null) {

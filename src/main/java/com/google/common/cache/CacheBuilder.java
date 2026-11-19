@@ -112,7 +112,7 @@ public final class CacheBuilder<K, V> {
 		return cache;
 	}
 
-	public <K1 extends K, V1 extends V> LoadingCache<K1, V1> build() {
+	public <K1 extends K, V1 extends V> Cache<K1, V1> build() {
 		return build(new CacheLoader<K1, V1>() {
 
 			@Override

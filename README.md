@@ -62,14 +62,35 @@ development:
 
 ## Multiplayer
 
-The client uses the Eaglercraft WebSocket handshake (v5, game protocol `762`)
-and cannot connect to a Java TCP port directly. You need an EaglerXServer
-listener in front of a Paper 1.19.4 backend. See [SERVER.md](SERVER.md) for a
-step-by-step Velocity + Paper setup, `wss://` configuration and troubleshooting.
+The client uses the Eaglercraft WebSocket handshake (v5) and cannot connect to
+a Java TCP port directly. The repository ships a platform-neutral
+`EaglerProtocolBridge` seam; without a translator installed the V5 handshake
+advertises game protocol `762`, as on the desktop and legacy TeaVM targets.
+
+A maintainer's local-only WASM-GC build can install the GPLv3 Via-backed
+translator. That build advertises `764` (1.20.2) and `758` (1.18.2), keeps the
+game itself on 1.19.4 internally, and translates every play packet before
+compression/encryption. Protocol `764` also makes EaglerXServer include the
+login UUID when it builds the vanilla login start, which avoids the Bungee
+`IndexOutOfBoundsException` seen with `762`. ViaVersion, ViaBackwards and their
+WASM-GC adaptations are not committed to this repository; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for versions and source links.
+
+You need an EaglerXServer listener in front of a backend whose protocol the
+local build can translate. See [SERVER.md](SERVER.md) for a step-by-step
+Velocity + Paper setup, `wss://` configuration and troubleshooting.
 
 For a handshake-only local check, run `node scripts/mock-eagler-server.mjs 8080`
 and add `ws://localhost:8080`; the client should reach "Joining world..." and
-wait there because the mock sends no play packets.
+wait there because the mock sends no play packets. The command
+`node scripts/test-v5-handshake.mjs` runs the same raw V5 exchange
+non-interactively through `SERVER_FINISH_LOGIN`, verifying that `764,758`
+selects `764`, that the V5 login response parses without buffer underflow, and
+that `758` alone selects the fallback.
+
+The `site/` directory holds the `exclamationstudios` landing page and launcher
+shell. Preview it with `node scripts/serve-site.mjs` (port 8123); see
+[`site/README.md`](site/README.md) for hosting notes.
 
 ## Layout
 
@@ -85,6 +106,7 @@ wait there because the mock sends no play packets.
 | `src/lwjgl` | Desktop platform implementation |
 | `patcher` | Deterministic source-patch tooling (see below) |
 | `scripts` | Build and verification helpers |
+| `site` | `exclamationstudios` landing page and launcher shell |
 
 ## Game source
 
@@ -111,5 +133,11 @@ above.
 ## Licence
 
 Eag19's own code is released under the MIT licence; see [LICENSE](LICENSE).
-Third-party components keep their own licences and notice files. Minecraft and
-its assets remain copyright Mojang Studios and are not part of this repository.
+Third-party components keep their own licences and notice files. The WASM
+client-side translator bundles ViaVersion and ViaBackwards (both GPLv3) plus
+SnakeYAML and Gson; their upstream licences ship with the vendored jars. If you
+distribute a WASM build containing them, you must comply with GPLv3 (including
+providing the corresponding source and licence notice). See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for versions, source links, and
+the WASM-GC adaptations. Minecraft and its assets remain copyright Mojang Studios
+and are not part of this repository.

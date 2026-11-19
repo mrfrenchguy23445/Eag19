@@ -4,8 +4,12 @@ Eag19 speaks the Eaglercraft WebSocket transport, not raw Minecraft TCP, so it
 cannot join a normal Java server directly. A Java 1.19.4 server is still the
 authority for the world; a WebSocket/translation layer sits in front of it.
 
-The layout that matches the client's protocol (handshake v5, game protocol
-`762`) is:
+The `764`/`758` path uses a maintainer-local GPLv3 Via stack and is not part of
+the public repository. A clean build advertises `762` only.
+
+The layout that matches a WASM client with the local-only Via translator
+(handshake v5, advertised game protocols `764` and `758`, translated
+client-side to the client's internal 1.19.4 protocol) is:
 
 ```
 browser (ws:// or wss://)
@@ -24,15 +28,18 @@ EaglerXServer listener port.
 
 | Component | Version |
 | --- | --- |
-| Eag19 client | Eaglercraft handshake v5, Minecraft protocol `762` (1.19.4) |
-| Backend | Paper 1.19.4 (or a 1.19.4-compatible fork) |
+| Eag19 WASM client (local Via build) | Eaglercraft handshake v5, advertises protocols `764` (1.20.2) and `758` (1.18.2), translated locally to internal `762` (1.19.4) |
+| Eag19 without Via / other targets | Eaglercraft handshake v5, Minecraft protocol `762` (1.19.4) |
+| Backend | Paper 1.19.4+ (1.20.2 works through `764`; 1.18.2 works through `758`) |
 | Proxy | Velocity 3.x or BungeeCord, Java 17+ |
 | WebSocket plugin | EaglerXServer 1.1.x |
 
 EaglerXServer translates the Eaglercraft framing, and its
 `protocols.max_minecraft_protocol_v5` setting defaults to `-1` ("any Minecraft
-protocol version"), so a v5 client advertising `762` is accepted by a current
-release. If you changed that value, set it back to `-1`.
+protocol version"), so a v5 client advertising `762`, `764` or `758` is accepted
+by a current release. If you changed that value, set it back to `-1`. On the
+local Via build, protocol `764` is preferred: it makes EaglerXServer include the
+login UUID in the vanilla login start, which modern BungeeCord requires.
 
 Public 1.19.4-capable Eaglercraft servers are rare; most existing networks run
 1.8 or 1.12.2 backends. Self-hosting is the reliable path.
@@ -113,7 +120,7 @@ forwarded address.
 
 | Symptom | Check |
 | --- | --- |
-| Ping shows but joining closes immediately (WebSocket close `1006`) | Backend/game protocol rejected: confirm Paper is 1.19.4 and `max_minecraft_protocol_v5 = -1` |
+| Ping shows but joining closes immediately (WebSocket close `1006`) | Backend/game protocol rejected: confirm the backend is 1.19.4 (or 1.18.2/1.20.2 with the local Via build) and `max_minecraft_protocol_v5 = -1` |
 | Browser refuses the connection on an HTTPS page | Use `wss://`, not `ws://` |
 | "End of stream" during play | Lower `view-distance`; Eaglercraft's bandwidth is the usual limit |
 | Player is shown as offline / can use any name | Expected with `online-mode=false`; add an auth plugin such as AuthMe or nLogin |

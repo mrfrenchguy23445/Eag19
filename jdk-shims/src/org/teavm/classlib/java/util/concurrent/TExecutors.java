@@ -35,6 +35,9 @@ public class TExecutors {
    /** Shared instance: the returned services hold no state, so one is enough. */
    private static final TExecutorService INLINE = new TAbstractExecutorService.Inline();
 
+   /** Scheduled variant, reached from ViaVersion's TaskScheduler constructor. */
+   private static final TScheduledExecutorService INLINE_SCHEDULED = new TInlineScheduledExecutorService();
+
    private static void checkPoolSize(int param0) {
       if (param0 <= 0) {
          throw new IllegalArgumentException("poolSize must be greater than 0");
@@ -65,6 +68,24 @@ public class TExecutors {
 
    public static TExecutorService newCachedThreadPool(TThreadFactory param0) {
       return INLINE;
+   }
+
+   public static TScheduledExecutorService newScheduledThreadPool(int param0) {
+      checkPoolSize(param0);
+      return INLINE_SCHEDULED;
+   }
+
+   public static TScheduledExecutorService newScheduledThreadPool(int param0, TThreadFactory param1) {
+      checkPoolSize(param0);
+      return INLINE_SCHEDULED;
+   }
+
+   public static TScheduledExecutorService newSingleThreadScheduledExecutor() {
+      return INLINE_SCHEDULED;
+   }
+
+   public static TScheduledExecutorService newSingleThreadScheduledExecutor(TThreadFactory param0) {
+      return INLINE_SCHEDULED;
    }
 
    public static TExecutorService newWorkStealingPool() {

@@ -8,7 +8,10 @@
  * output therefore fits both hosts, and the bundle is also servable as-is by
  * `npx wrangler pages deploy public`.
  *
- * Usage: node scripts/make-web-bundle.mjs [--no-sounds] [--out <dir>]
+ * Silent builds are the default. Pass --sounds only if you explicitly want the
+ * 98 MiB sound pack split into download parts again.
+ *
+ * Usage: node scripts/make-web-bundle.mjs [--sounds] [--out <dir>]
  */
 
 import fs from 'node:fs';
@@ -19,7 +22,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const js = path.join(root, 'target_teavm_wasm_gc', 'javascript');
 
 const argv = process.argv.slice(2);
-const withSounds = !argv.includes('--no-sounds');
+const withSounds = argv.includes('--sounds');
 const outIdx = argv.indexOf('--out');
 const out = outIdx >= 0 ? path.resolve(argv[outIdx + 1]) : path.join(root, 'sites-web', 'public');
 const pub = out;
@@ -86,7 +89,7 @@ for (const f of statics) {
 }
 fs.writeFileSync(path.join(pub, 'manifest.json'), JSON.stringify(manifest, null, '\t'));
 
-const title = 'EaglercraftX 1.19.4';
+const title = withSounds ? 'EaglercraftX 1.19.4' : 'EaglercraftX 1.19.4 (silent)';
 
 const html = `<!DOCTYPE html>
 <html>
@@ -116,7 +119,7 @@ canvas { display: block; }
 (function() {
 	const GATE_HTML = '<div><h1>${title}</h1>' +
 		'<div class="go">Click to play</div>' +
-		'<div class="hint">Your browser only allows audio after a click. The client is ~215 MB and downloads once, then it is cached by the browser.</div></div>';
+		'<div class="hint">${withSounds ? 'Your browser only allows audio after a click.' : 'This build has no sounds. The click starts the client.'} The client downloads once, then it is cached by the browser.</div></div>';
 
 	let phase = "waiting";
 	let mainFunc = null;
@@ -130,7 +133,10 @@ canvas { display: block; }
 	document.body.appendChild(gate);
 	gate.addEventListener("click", start);
 
-	window.eagWebOpts = { "localStorageNamespace": "_eaglercraftX_wasm_web" };
+	window.eagWebOpts = {
+		"localStorageNamespace": "_eaglercraftX_wasm_web",
+		"disableAudio": ${withSounds ? 'false' : 'true'}
+	};
 
 	window.__eaglercraftXLoaderContext = {
 		"getEaglercraftXOpts": function() { return window.eagWebOpts; },

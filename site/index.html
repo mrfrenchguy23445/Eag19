@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>exclamationstudios — Eaglercraft 1.19.4 port &amp; launcher</title>
+	<meta name="description" content="Client-side V5/Via multiplayer port for Eaglercraft 1.19.4. Web launcher, single-file offline build, no server patch.">
+	<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+	<a class="skip" href="#main">Skip to content</a>
+
+	<div class="shell">
+		<header class="topbar">
+			<a class="brand" href="#main" aria-label="exclamationstudios home">
+				<span class="brand-mark" aria-hidden="true">!</span>
+				<span class="brand-name">exclamation<em>studios</em></span>
+			</a>
+			<nav class="nav" aria-label="Main navigation">
+				<a href="#play" aria-current="page">Play</a>
+				<a href="#launcher">Launcher</a>
+				<a href="#docs">Docs</a>
+				<a href="#legal">Legal</a>
+			</nav>
+		</header>
+
+		<div class="ticker" aria-hidden="true">
+			<div class="ticker-track">
+				<span>client-side v5/via translation</span><b>✦</b>
+				<span>no server patch</span><b>✦</b>
+				<span>web + offline builds</span><b>✦</b>
+				<span>protocols 764 / 758</span><b>✦</b>
+				<span>jspi required</span><b>✦</b>
+				<span>click to enable sounds</span><b>✦</b>
+				<span>client-side v5/via translation</span><b>✦</b>
+				<span>no server patch</span><b>✦</b>
+				<span>web + offline builds</span><b>✦</b>
+				<span>protocols 764 / 758</span><b>✦</b>
+				<span>jspi required</span><b>✦</b>
+				<span>click to enable sounds</span><b>✦</b>
+			</div>
+		</div>
+
+		<main id="main">
+			<section class="hero" id="play">
+				<div class="hero-copy">
+					<span class="kicker">Eaglercraft 1.19.4 / multiplayer fix</span>
+					<h1 class="display">1.19.4 <span class="outline">without</span> the server patch.</h1>
+					<p class="lede">A WASM-GC client that translates modern V5/Via traffic in the browser. Point it at an unmodified Eagler-style multiplayer server, pick a wire protocol, and play. Singleplayer and offline downloads still work.</p>
+					<div class="hero-actions">
+						<a class="btn" href="../sites-web/public/index.html">Launch web port <span aria-hidden="true">↗</span></a>
+						<a class="btn secondary" href="../target_teavm_wasm_gc/javascript_dist/EaglercraftX_1.19.4_WASM_Offline.html" download>Download offline HTML</a>
+						<a class="btn secondary" href="#docs">Read the notes</a>
+					</div>
+				</div>
+
+				<aside class="build-card" aria-label="Build information">
+					<span class="mono-label">build slate / 04</span>
+					<dl>
+						<dt>Target</dt><dd>WASM-GC</dd>
+						<dt>Game</dt><dd>1.19.4</dd>
+						<dt>Wire</dt><dd>764 → 758</dd>
+						<dt>Via</dt><dd>4.10.2</dd>
+						<dt>Runtime</dt><dd>JSPI</dd>
+						<dt>Dev port</dt><dd>8097</dd>
+						<dt>Server patch</dt><dd>none</dd>
+					</dl>
+					<div class="stamp">No bridge required*</div>
+					<p class="small">*The local WebSocket→TCP bridge remains available as a fallback. The shipped fix is client-side.</p>
+				</aside>
+			</section>
+
+			<div class="feature-row" aria-label="Highlights">
+				<div class="feature">
+					<div class="num">01</div>
+					<h3>No server patch</h3>
+					<p>Protocol translation lives in the client. EaglerXServer, Bungee, and Paper stay untouched.</p>
+				</div>
+				<div class="feature">
+					<div class="num">02</div>
+					<h3>Two wire paths</h3>
+					<p>Advertises 764 and 758. The handshake picks the highest protocol the far side understands.</p>
+				</div>
+				<div class="feature">
+					<div class="num">03</div>
+					<h3>One-file offline</h3>
+					<p>The same port can be baked into a self-contained HTML file. No install, no background service.</p>
+				</div>
+			</div>
+
+			<section class="section" id="launcher">
+				<h2 class="section-title">Launcher, minus the ceremony.</h2>
+				<p class="lede">This is the actual boot surface: a click gate, a protocol choice, and a server URL. Nothing phones home, nothing downloads a binary, nothing asks for an account.</p>
+
+				<div class="launcher-wrap" style="margin-top: 30px;">
+					<div class="launcher">
+						<div class="launcher-bar">
+							<i></i><i></i><i></i>
+							<strong>exclamationstudios / launcher</strong>
+						</div>
+						<div class="launcher-screen">
+							<div class="launcher-tabs" role="tablist" aria-label="Launcher modes">
+								<button type="button" role="tab" data-launcher-tab="play" aria-selected="true">Play</button>
+								<button type="button" role="tab" data-launcher-tab="offline" aria-selected="false">Offline</button>
+								<button type="button" role="tab" data-launcher-tab="server" aria-selected="false">Server</button>
+							</div>
+
+							<div class="launcher-panel active" data-launcher-panel="play" role="tabpanel">
+								<div class="field">
+									<label for="launcher-name">Player</label>
+									<input id="launcher-name" name="player" value="Player" autocomplete="nickname">
+								</div>
+								<div class="field">
+									<label for="launcher-proto">Protocol</label>
+									<select id="launcher-proto" name="protocol">
+										<option value="764" selected>764 / modern V5</option>
+										<option value="758">758 / fallback</option>
+									</select>
+								</div>
+								<div class="field">
+									<label for="launcher-server">Server</label>
+									<input id="launcher-server" name="server" value="ws://localhost:8080" spellcheck="false">
+								</div>
+								<div class="launcher-status" id="launcher-proto-note">1.20.2 wire protocol. Preferred on modern Bungee/Velocity.</div>
+								<div class="launcher-foot">
+									<a class="btn" href="../sites-web/public/index.html">Click to enable sounds!</a>
+									<a class="btn secondary" href="../sites-web/probe/public/index.html">Open probe build</a>
+								</div>
+							</div>
+
+							<div class="launcher-panel" data-launcher-panel="offline" role="tabpanel" hidden>
+								<p class="small">The offline file embeds the runtime, assets, and world data. This silent build has no sound pack. Open it from disk and press the boot gate.</p>
+								<div class="launcher-status">Self-contained / file:// capable / silent build</div>
+								<div class="launcher-foot">
+									<a class="btn" href="../target_teavm_wasm_gc/javascript_dist/EaglercraftX_1.19.4_WASM_Offline.html" download>Get offline HTML</a>
+									<a class="btn secondary" href="../scripts/make-offline-html.mjs">See generator</a>
+								</div>
+							</div>
+
+							<div class="launcher-panel" data-launcher-panel="server" role="tabpanel" hidden>
+								<p class="small">Servers are entered in-game, not baked into the launcher. A local mock V5 server is included for protocol checks.</p>
+								<div class="launcher-status">ws://localhost:8080 / protocol 764 or 758</div>
+								<div class="launcher-foot">
+									<a class="btn" href="../scripts/mock-eagler-server.mjs">Mock server source</a>
+									<a class="btn secondary" href="../SERVER.md">Server notes</a>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<aside class="launcher-notes">
+						<span class="kicker">Before you click</span>
+						<h3 class="section-title" style="font-size: clamp(2rem, 4vw, 3rem); margin-top: 14px;">Read this bit.</h3>
+						<ul>
+							<li>Use a current Chrome or Edge. JSPI is not optional.</li>
+							<li>The first click is deliberate. Browsers need the gesture.</li>
+							<li>HTTPS pages need <code>wss://</code>. Local <code>ws://</code> is for development.</li>
+							<li>Protocol 764 is the preferred V5 path. 758 stays as the fallback.</li>
+							<li>No server patch, no proxy rewrite, no Rust bootstrap.</li>
+						</ul>
+						<div class="pill red">client-side only</div>
+						<div class="pill">bridge: fallback</div>
+						<div class="pill">dev: :8097</div>
+					</aside>
+				</div>
+			</section>
+
+			<section class="section" id="docs">
+				<h2 class="section-title">Run it locally.</h2>
+				<div class="doc-grid">
+					<div class="terminal" role="img" aria-label="Terminal commands for starting the dev client and mock server">
+						<div><span class="prompt">$</span> node scripts/serve-wasm-dev.mjs</div>
+						<div><span class="dim">→ dev client at http://localhost:8097</span></div>
+						<div><span class="prompt">$</span> node scripts/mock-eagler-server.mjs</div>
+						<div><span class="dim">→ mock V5 server at ws://localhost:8080</span></div>
+						<div><span class="prompt">$</span> node scripts/make-offline-html.mjs</div>
+						<div><span class="dim">→ self-contained HTML in javascript_dist/</span></div>
+					</div>
+
+					<div class="doc-grid" style="gap: 16px;">
+						<div class="doc-card">
+							<h3>README</h3>
+							<p>Build steps, query flags, and the layout of the port.</p>
+							<a class="btn secondary" href="../README.md">Open README</a>
+						</div>
+						<div class="doc-card">
+							<h3>SERVER</h3>
+							<p>EaglerXServer, Velocity, Paper, and the local mock handshake.</p>
+							<a class="btn secondary" href="../SERVER.md">Open SERVER</a>
+						</div>
+						<div class="doc-card">
+							<h3>Bridge fallback</h3>
+							<p>The WebSocket→TCP path is still committed, but it is not the fix.</p>
+							<a class="btn secondary" href="../bridge/README.md">Open bridge notes</a>
+						</div>
+						<div class="doc-card">
+							<h3>Web bundle</h3>
+							<p>Chunked static hosting used by the generated web launcher.</p>
+							<a class="btn secondary" href="../scripts/make-web-bundle.mjs">Open generator</a>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section class="section" id="legal">
+				<h2 class="section-title">Licence, plainly.</h2>
+				<div class="notice">
+					<strong>ViaVersion and ViaBackwards 4.10.2 are GPLv3.</strong>
+					The public repository keeps the bridge seam only; the Via binaries and WASM adaptations are local to the maintainer's build. If you distribute a Via-enabled build, ship the licence text and the corresponding source. Do not pretend the translation layer is MIT just because the surrounding port is.
+				</div>
+				<p class="lede" style="margin-top: 18px;">exclamationstudios is a build label, not an affiliation with Mojang, Eaglercraft, ViaVersion, or any server operator. The port is a compatibility layer, not a replacement for a game. Full versions, source links, and adaptations are in <a href="../THIRD_PARTY_NOTICES.md" style="border-bottom: 2px solid currentColor;">THIRD_PARTY_NOTICES.md</a>.</p>
+			</section>
+		</main>
+
+		<div class="hazard" aria-hidden="true"></div>
+
+		<footer>
+			<span>© exclamationstudios / eag190 port</span>
+			<span>Yellow on purpose. Square corners on purpose.</span>
+			<span><a href="#main">Back to top ↑</a></span>
+		</footer>
+	</div>
+
+	<script src="launcher.js"></script>
+</body>
+</html>

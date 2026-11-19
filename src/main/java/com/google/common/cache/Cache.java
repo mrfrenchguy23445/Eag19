@@ -1,6 +1,7 @@
 package com.google.common.cache;
 
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.ImmutableMap;
@@ -51,7 +52,7 @@ public interface Cache<K, V> {
 
 	CacheStats stats();
 
-	Map<K, V> asMap();
+	ConcurrentMap<K, V> asMap();
 
 	void cleanUp();
 

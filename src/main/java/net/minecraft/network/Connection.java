@@ -22,6 +22,7 @@ import net.lax1dude.eaglercraft.v1_8.internal.EnumEaglerConnectionState;
 import net.lax1dude.eaglercraft.v1_8.internal.IWebSocketClient;
 import net.lax1dude.eaglercraft.v1_8.internal.IWebSocketFrame;
 import net.lax1dude.eaglercraft.v1_8.internal.PlatformNetworking;
+import net.lax1dude.eaglercraft.v1_8.socket.EaglerProtocolBridge;
 import net.minecraft.Util;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
@@ -263,7 +264,11 @@ public class Connection implements ChannelHandler {
             LOGGER.debug(PACKET_SENT_MARKER, "OUT: [{}:{}] {}", var3, var3.getPacketId(this.getSending(), param0), param0.getClass().getName());
          }
 
-         this.webSocket.send(var5);
+         if (var5 != null) {
+            this.webSocket.send(var5);
+         }
+         sendGeneratedProtocolPackets();
+         deliverGeneratedClientboundPackets();
          if (param1 != null) {
             param1.onSuccess();
          }
@@ -273,7 +278,12 @@ public class Connection implements ChannelHandler {
             Packet<?> var7 = param1.onFailure();
             if (var7 != null) {
                try {
-                  this.webSocket.send(this.encode(var7, ConnectionProtocol.getProtocolForPacket(var7)));
+                  byte[] var8x = this.encode(var7, ConnectionProtocol.getProtocolForPacket(var7));
+                  if (var8x != null) {
+                     this.webSocket.send(var8x);
+                  }
+                  sendGeneratedProtocolPackets();
+                  deliverGeneratedClientboundPackets();
                } catch (Throwable var8) {
                   LOGGER.error("Failed to send fallback packet {}", var7, var8);
                }
@@ -306,6 +316,8 @@ public class Connection implements ChannelHandler {
          }
       }
       this.processReceivedFrames();
+      sendGeneratedProtocolPackets();
+      deliverGeneratedClientboundPackets();
       if (this.packetListener instanceof TickablePacketListener var1) {
          var1.tick();
       }
@@ -362,6 +374,7 @@ public class Connection implements ChannelHandler {
    }
 
    public void disconnect(Component param0) {
+      EaglerProtocolBridge.close();
       if (this.localPeer != null && !this.localClosed) {
          this.localClosed = true;
          this.disconnectedReason = param0;
@@ -471,15 +484,72 @@ public class Connection implements ChannelHandler {
 
       byte[] var6 = new byte[var3.readableBytes()];
       var3.readBytes(var6);
+      if (EaglerProtocolBridge.isAvailable()) {
+         var6 = EaglerProtocolBridge.transformServerbound(var6, param1);
+         if (var6 == null) {
+            return null;
+         }
+      }
+      return applyTransportEncoding(var6);
+   }
+
+   /**
+    * Applies the Eagler stream framing (compression/encryption) to a packet that
+    * has already been translated into the server's protocol.
+    */
+   private byte[] applyTransportEncoding(byte[] param0) {
+      byte[] var1 = param0;
       if (this.compressionThreshold >= 0) {
-         var6 = compress(var6);
+         var1 = compress(var1);
       }
 
       if (this.encryptCipher != null) {
-         var6 = applyCipher(this.encryptCipher, var6);
+         var1 = applyCipher(this.encryptCipher, var1);
       }
 
-      return var6;
+      return var1;
+   }
+
+   private void sendGeneratedProtocolPackets() {
+      if (!EaglerProtocolBridge.isAvailable() || this.webSocket == null) {
+         EaglerProtocolBridge.drainGeneratedServerbound().clear();
+         return;
+      }
+      for (byte[] packet : EaglerProtocolBridge.drainGeneratedServerbound()) {
+         this.webSocket.send(applyTransportEncoding(packet));
+      }
+   }
+
+   /**
+    * Dispatches packets synthesized for the client by the protocol translator.
+    * They are already in the client's protocol, so they skip the translation
+    * and transport-decoding steps.
+    */
+   private void deliverGeneratedClientboundPackets() {
+      if (!EaglerProtocolBridge.isAvailable()) {
+         EaglerProtocolBridge.drainGeneratedClientbound().clear();
+         return;
+      }
+      for (byte[] packet : EaglerProtocolBridge.drainGeneratedClientbound()) {
+         ConnectionProtocol protocol = this.getCurrentProtocol();
+         if (protocol == null) {
+            throw new IllegalStateException("Received generated packet before a protocol was set");
+         }
+         FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.wrappedBuffer(packet));
+         try {
+            int id = buf.readVarInt();
+            Packet<?> created = protocol.createPacket(this.receiving, id, buf);
+            if (created == null) {
+               throw new IllegalStateException("Bad generated packet id " + id + " in state " + protocol);
+            }
+            genericsFtw(created, this.packetListener);
+            this.receivedPackets++;
+         } catch (Throwable t) {
+            handleFault(t);
+         } finally {
+            buf.release();
+         }
+      }
    }
 
    private void decode(byte[] param0) {
@@ -491,8 +561,23 @@ public class Connection implements ChannelHandler {
          param0 = decompress(param0);
       }
 
-      FriendlyByteBuf var1 = new FriendlyByteBuf(Unpooled.wrappedBuffer(param0));
       ConnectionProtocol var2 = this.getCurrentProtocol();
+      if (EaglerProtocolBridge.isAvailable()) {
+         if (var2 == null) {
+            throw new IllegalStateException("Received packet before a protocol was set");
+         }
+         byte[] translated = EaglerProtocolBridge.transformClientbound(param0, var2);
+         if (translated == null) {
+            sendGeneratedProtocolPackets();
+            deliverGeneratedClientboundPackets();
+            return;
+         }
+         param0 = translated;
+         sendGeneratedProtocolPackets();
+         deliverGeneratedClientboundPackets();
+      }
+
+      FriendlyByteBuf var1 = new FriendlyByteBuf(Unpooled.wrappedBuffer(param0));
       if (var2 == null) {
          throw new IllegalStateException("Received packet before a protocol was set");
       }

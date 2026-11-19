@@ -216,7 +216,8 @@ canvas { display: block; }
 
 	window.eagDevOpts = {
 		// Distinct localStorage namespace so dev progress never touches a real install.
-		"localStorageNamespace": "_eaglercraftX_wasm_dev"
+		"localStorageNamespace": "_eaglercraftX_wasm_dev",
+		"disableAudio": true
 	};
 
 	// Contract: src/wasm-gc-teavm/js/eagruntime_entrypoint.js
@@ -259,12 +260,9 @@ canvas { display: block; }
 		}
 	};
 
-	// ---- "Click to enable sounds" gate (dev) --------------------------------
-	// The WASM runtime creates its AudioContext early in boot, and browsers only
-	// allow that after a user gesture - so boot is held behind an explicit click
-	// here (same flow as the official offline build's launch_countdown_screen).
-	// The first click starts the sounds.epk prefetch with a progress bar; a
-	// second click skips the wait and launches without sounds.
+	// ---- Boot gate (dev) ----------------------------------------------------
+	// The click is kept as the user-gesture boundary for the WASM runtime. This
+	// build is silent: no sounds.epk, no AudioContext, no keep-alive element.
 	function startSoundGate(mainFunc) {
 		const style = document.createElement("style");
 		style.textContent = [
@@ -273,11 +271,7 @@ canvas { display: block; }
 			"text-align:center;z-index:999999;user-select:none;cursor:pointer;}",
 			"#eagDevSoundGate h1{font-size:26px;color:#fff;margin:0 0 18px;}",
 			"#eagDevSoundGate .go{font-size:22px;color:#ffff55;margin:10px 0 4px;}",
-			"#eagDevSoundGate .hint{font-size:13px;color:#8b8b8b;margin-top:26px;max-width:520px;}",
-			"#eagDevSoundGate .barWrap{width:420px;height:26px;border:2px solid #808080;",
-			"margin:14px auto 0;background:#101010;}",
-			"#eagDevSoundGate .bar{height:100%;width:0%;background:#00aa00;}",
-			"#eagDevSoundGate .pct{margin-top:8px;font-size:13px;color:#a0a0a0;}"
+			"#eagDevSoundGate .hint{font-size:13px;color:#8b8b8b;margin-top:26px;max-width:520px;}"
 		].join("");
 		document.head.appendChild(style);
 
@@ -286,80 +280,12 @@ canvas { display: block; }
 		gate.innerHTML = '<div>' +
 			'<h1>EaglercraftX 1.19.4</h1>' +
 			'<div class="go">Click to enable sounds!</div>' +
-			'<div class="hint">Your browser only allows audio after a click. The ' +
-			'sound pack (~103 MB) starts downloading when you click; click again ' +
-			'during the download to launch without sounds.</div>' +
+			'<div class="hint">This build is silent. The click is still required to start the client.</div>' +
 			'</div>';
 		document.body.appendChild(gate);
-
-		let phase = "waiting"; // waiting -> loading -> launching
-		let soundData = null;
-		let reader = null;
-
-		function setProgress(got, total) {
-			let el = gate.querySelector(".loadingUI");
-			if (!el) {
-				gate.querySelector(".go").textContent = "Loading sound pack...";
-				el = document.createElement("div");
-				el.className = "loadingUI";
-				el.innerHTML = '<div class="barWrap"><div class="bar"></div></div><div class="pct"></div>';
-				gate.querySelector("div").appendChild(el);
-			}
-			if (total) {
-				const pct = Math.min(100, Math.floor(got * 100 / total));
-				el.querySelector(".bar").style.width = pct + "%";
-				el.querySelector(".pct").textContent = pct + "% (" + Math.round(got / 1048576) + " / " + Math.round(total / 1048576) + " MB)";
-			} else {
-				el.querySelector(".pct").textContent = Math.round(got / 1048576) + " MB";
-			}
-		}
-
-		function launch() {
-			if (phase === "launching") return;
-			phase = "launching";
-			if (soundData) {
-				epkFiles.push({ "name": "sounds.epk", "path": "", "data": soundData });
-				console.log("mounting sounds.epk (" + Math.round(soundData.length / 1048576) + " MB)");
-			}
-			if (reader) reader.cancel().catch(() => {});
+		gate.addEventListener("click", function() {
 			gate.remove();
 			setTimeout(mainFunc, 10);
-		}
-
-		function beginDownload() {
-			phase = "loading";
-			fetch("sounds.epk").then((resp) => {
-				if (!resp.ok) return Promise.reject(new Error("HTTP " + resp.status));
-				const total = +resp.headers.get("Content-Length") || 0;
-				if (!resp.body) return resp.arrayBuffer().then((b) => new Uint8Array(b));
-				reader = resp.body.getReader();
-				const chunks = [];
-				let got = 0;
-				return (async () => {
-					for (;;) {
-						const r = await reader.read();
-						if (r.done) break;
-						chunks.push(r.value);
-						got += r.value.length;
-						setProgress(got, total);
-					}
-					const all = new Uint8Array(got);
-					let o = 0;
-					for (const c of chunks) { all.set(c, o); o += c.length; }
-					return all;
-				})();
-			}).then((data) => {
-				soundData = data;
-				if (phase === "loading") launch();
-			}).catch((e) => {
-				console.warn("sounds.epk unavailable: " + e.message + " - booting without sounds");
-				if (phase === "loading") launch();
-			});
-		}
-
-		gate.addEventListener("click", () => {
-			if (phase === "waiting") beginDownload();
-			else if (phase === "loading") launch();
 		});
 	}
 })();
