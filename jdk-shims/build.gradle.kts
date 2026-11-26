@@ -240,7 +240,7 @@ dependencies {
 	// in teavm-core (not the classlib) and is the same store java.io.File's
 	// implementation is written against. compileOnly again: the target already has
 	// teavm-core, and duplicating it here would only risk a version skew.
-	compileOnly("org.teavm:teavm-core:0.12.1-EAGLER-R3")
+	compileOnly("org.teavm:teavm-core:0.17.0")
 
 	// The overrides under src-classlib/org/teavm/classlib/java/lang/X*.java are the
 	// classlib's own sources, copied line for line and then given one member each --
@@ -256,7 +256,7 @@ dependencies {
 	//
 	// compileOnly, for the same reason as every other entry here: this jar must never
 	// export anything, or the target would link two copies of the classlib.
-	"classlibCompileOnly"("org.teavm:teavm-core:0.12.1-EAGLER-R3")
+	"classlibCompileOnly"("org.teavm:teavm-core:0.17.0")
 	"classlibCompileOnly"("org.teavm:teavm-classlib:0.12.1-EAGLER-R3")
 	"classlibCompileOnly"("org.teavm:teavm-interop:0.12.1-EAGLER-R3")
 	"classlibCompileOnly"("org.teavm:teavm-jso:0.12.1-EAGLER-R3")

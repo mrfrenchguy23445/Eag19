@@ -32,7 +32,7 @@ sourceSets {
 dependencies {
 	implementation(rootProject)
 	implementation(libs.bundles.common)
-	implementation(platform("org.lwjgl:lwjgl-bom:3.3.6"))
+	implementation(platform("org.lwjgl:lwjgl-bom:3.4.3"))
 	implementation("org.lwjgl:lwjgl")
 	implementation("org.lwjgl:lwjgl-egl")
 	implementation("org.lwjgl:lwjgl-glfw")
