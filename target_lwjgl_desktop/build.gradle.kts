@@ -40,7 +40,7 @@ dependencies {
 	implementation("org.lwjgl:lwjgl-openal")
 	implementation("org.lwjgl:lwjgl-opengles")
 	implementation("org.java-websocket:Java-WebSocket:1.6.0")
-	implementation("dev.onvoid.webrtc:webrtc-java:0.10.0")
+	implementation("dev.onvoid.webrtc:webrtc-java:1.0.1")
 	implementation(libs.bundles.mc1194)
 	implementation(
 		files(
