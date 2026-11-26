@@ -24,26 +24,26 @@ jobs:
     name: Gradle wrapper validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: gradle/actions/wrapper-validation@v4
+      - uses: actions/checkout@v7
+      - uses: gradle/actions/wrapper-validation@v6
 
   build:
     name: Compile merged 1.19.4 tree
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # MUST be 17. The build pins a Java 17 toolchain and settings.gradle.kts
       # declares no toolchain resolver, so Gradle will not provision it -- a
       # runner defaulting to a newer JDK fails with
       # "No matching toolchain found for language version 17".
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
 
       # Only the root subproject is compiled here. The merged game tree is the
       # part that must stay buildable.
@@ -59,7 +59,7 @@ jobs:
 
       - name: Upload compiler logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: compile-logs
           path: build/**/*.log
