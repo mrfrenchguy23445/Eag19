@@ -1,0 +1,69 @@
+package net.minecraft.world.level.storage.loot.predicates;
+
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonSerializationContext;
+import javax.annotation.Nullable;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.GsonHelper;
+import net.minecraft.world.level.storage.loot.LootContext;
+
+public class WeatherCheck implements LootItemCondition {
+   @Nullable
+   final Boolean isRaining;
+   @Nullable
+   final Boolean isThundering;
+
+   WeatherCheck(@Nullable Boolean param0, @Nullable Boolean param1) {
+      this.isRaining = param0;
+      this.isThundering = param1;
+   }
+
+   @Override
+   public LootItemConditionType getType() {
+      return LootItemConditions.WEATHER_CHECK;
+   }
+
+   public boolean test(LootContext param0) {
+      ServerLevel var2 = param0.getLevel();
+      return this.isRaining != null && this.isRaining != var2.isRaining() ? false : this.isThundering == null || this.isThundering == var2.isThundering();
+   }
+
+   public static WeatherCheck.Builder weather() {
+      return new WeatherCheck.Builder();
+   }
+
+   public static class Builder implements LootItemCondition.Builder {
+      @Nullable
+      private Boolean isRaining;
+      @Nullable
+      private Boolean isThundering;
+
+      public WeatherCheck.Builder setRaining(@Nullable Boolean param0) {
+         this.isRaining = param0;
+         return this;
+      }
+
+      public WeatherCheck.Builder setThundering(@Nullable Boolean param0) {
+         this.isThundering = param0;
+         return this;
+      }
+
+      public WeatherCheck build() {
+         return new WeatherCheck(this.isRaining, this.isThundering);
+      }
+   }
+
+   public static class Serializer implements net.minecraft.world.level.storage.loot.Serializer<WeatherCheck> {
+      public void serialize(JsonObject param0, WeatherCheck param1, JsonSerializationContext param2) {
+         param0.addProperty("raining", param1.isRaining);
+         param0.addProperty("thundering", param1.isThundering);
+      }
+
+      public WeatherCheck deserialize(JsonObject param0, JsonDeserializationContext param1) {
+         Boolean var3 = param0.has("raining") ? GsonHelper.getAsBoolean(param0, "raining") : null;
+         Boolean var4 = param0.has("thundering") ? GsonHelper.getAsBoolean(param0, "thundering") : null;
+         return new WeatherCheck(var3, var4);
+      }
+   }
+}

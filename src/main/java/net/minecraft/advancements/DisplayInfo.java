@@ -1,0 +1,196 @@
+package net.minecraft.advancements;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonSyntaxException;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import javax.annotation.Nullable;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.TagParser;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.GsonHelper;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+
+public class DisplayInfo {
+   private final Component title;
+   private final Component description;
+   private final ItemStack icon;
+   @Nullable
+   private final ResourceLocation background;
+   private final FrameType frame;
+   private final boolean showToast;
+   private final boolean announceChat;
+   private final boolean hidden;
+   private float x;
+   private float y;
+
+   public DisplayInfo(
+      ItemStack param0, Component param1, Component param2, @Nullable ResourceLocation param3, FrameType param4, boolean param5, boolean param6, boolean param7
+   ) {
+      this.title = param1;
+      this.description = param2;
+      this.icon = param0;
+      this.background = param3;
+      this.frame = param4;
+      this.showToast = param5;
+      this.announceChat = param6;
+      this.hidden = param7;
+   }
+
+   public void setLocation(float param0, float param1) {
+      this.x = param0;
+      this.y = param1;
+   }
+
+   public Component getTitle() {
+      return this.title;
+   }
+
+   public Component getDescription() {
+      return this.description;
+   }
+
+   public ItemStack getIcon() {
+      return this.icon;
+   }
+
+   @Nullable
+   public ResourceLocation getBackground() {
+      return this.background;
+   }
+
+   public FrameType getFrame() {
+      return this.frame;
+   }
+
+   public float getX() {
+      return this.x;
+   }
+
+   public float getY() {
+      return this.y;
+   }
+
+   public boolean shouldShowToast() {
+      return this.showToast;
+   }
+
+   public boolean shouldAnnounceChat() {
+      return this.announceChat;
+   }
+
+   public boolean isHidden() {
+      return this.hidden;
+   }
+
+   public static DisplayInfo fromJson(JsonObject param0) {
+      Component var1 = Component.Serializer.fromJson(param0.get("title"));
+      Component var2 = Component.Serializer.fromJson(param0.get("description"));
+      if (var1 != null && var2 != null) {
+         ItemStack var3 = getIcon(GsonHelper.getAsJsonObject(param0, "icon"));
+         ResourceLocation var4 = param0.has("background") ? new ResourceLocation(GsonHelper.getAsString(param0, "background")) : null;
+         FrameType var5 = param0.has("frame") ? FrameType.byName(GsonHelper.getAsString(param0, "frame")) : FrameType.TASK;
+         boolean var6 = GsonHelper.getAsBoolean(param0, "show_toast", true);
+         boolean var7 = GsonHelper.getAsBoolean(param0, "announce_to_chat", true);
+         boolean var8 = GsonHelper.getAsBoolean(param0, "hidden", false);
+         return new DisplayInfo(var3, var1, var2, var4, var5, var6, var7, var8);
+      } else {
+         throw new JsonSyntaxException("Both title and description must be set");
+      }
+   }
+
+   private static ItemStack getIcon(JsonObject param0) {
+      if (!param0.has("item")) {
+         throw new JsonSyntaxException("Unsupported icon type, currently only items are supported (add 'item' key)");
+      }
+
+      Item var1 = GsonHelper.getAsItem(param0, "item");
+      if (param0.has("data")) {
+         throw new JsonParseException("Disallowed data tag found");
+      }
+
+      ItemStack var2 = new ItemStack(var1);
+      if (param0.has("nbt")) {
+         try {
+            CompoundTag var3 = TagParser.parseTag(GsonHelper.convertToString(param0.get("nbt"), "nbt"));
+            var2.setTag(var3);
+         } catch (CommandSyntaxException var3) {
+            throw new JsonSyntaxException("Invalid nbt tag: " + var3.getMessage());
+         }
+      }
+
+      return var2;
+   }
+
+   public void serializeToNetwork(FriendlyByteBuf param0) {
+      param0.writeComponent(this.title);
+      param0.writeComponent(this.description);
+      param0.writeItem(this.icon);
+      param0.writeEnum(this.frame);
+      int var2 = 0;
+      if (this.background != null) {
+         var2 |= 1;
+      }
+
+      if (this.showToast) {
+         var2 |= 2;
+      }
+
+      if (this.hidden) {
+         var2 |= 4;
+      }
+
+      param0.writeInt(var2);
+      if (this.background != null) {
+         param0.writeResourceLocation(this.background);
+      }
+
+      param0.writeFloat(this.x);
+      param0.writeFloat(this.y);
+   }
+
+   public static DisplayInfo fromNetwork(FriendlyByteBuf param0) {
+      Component var1 = param0.readComponent();
+      Component var2 = param0.readComponent();
+      ItemStack var3 = param0.readItem();
+      FrameType var4 = param0.readEnum(FrameType.class);
+      int var5 = param0.readInt();
+      ResourceLocation var6 = (var5 & 1) != 0 ? param0.readResourceLocation() : null;
+      boolean var7 = (var5 & 2) != 0;
+      boolean var8 = (var5 & 4) != 0;
+      DisplayInfo var9 = new DisplayInfo(var3, var1, var2, var6, var4, var7, false, var8);
+      var9.setLocation(param0.readFloat(), param0.readFloat());
+      return var9;
+   }
+
+   public JsonElement serializeToJson() {
+      JsonObject var1 = new JsonObject();
+      var1.add("icon", this.serializeIcon());
+      var1.add("title", Component.Serializer.toJsonTree(this.title));
+      var1.add("description", Component.Serializer.toJsonTree(this.description));
+      var1.addProperty("frame", this.frame.getName());
+      var1.addProperty("show_toast", this.showToast);
+      var1.addProperty("announce_to_chat", this.announceChat);
+      var1.addProperty("hidden", this.hidden);
+      if (this.background != null) {
+         var1.addProperty("background", this.background.toString());
+      }
+
+      return var1;
+   }
+
+   private JsonObject serializeIcon() {
+      JsonObject var1 = new JsonObject();
+      var1.addProperty("item", BuiltInRegistries.ITEM.getKey(this.icon.getItem()).toString());
+      if (this.icon.hasTag()) {
+         var1.addProperty("nbt", this.icon.getTag().toString());
+      }
+
+      return var1;
+   }
+}

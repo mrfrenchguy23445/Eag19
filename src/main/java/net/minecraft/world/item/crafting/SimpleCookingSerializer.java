@@ -1,0 +1,57 @@
+package net.minecraft.world.item.crafting;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.GsonHelper;
+import net.minecraft.world.item.ItemStack;
+
+public class SimpleCookingSerializer<T extends AbstractCookingRecipe> implements RecipeSerializer<T> {
+   private final int defaultCookingTime;
+   private final SimpleCookingSerializer.CookieBaker<T> factory;
+
+   public SimpleCookingSerializer(SimpleCookingSerializer.CookieBaker<T> param0, int param1) {
+      this.defaultCookingTime = param1;
+      this.factory = param0;
+   }
+
+   public T fromJson(ResourceLocation param0, JsonObject param1) {
+      String var3 = GsonHelper.getAsString(param1, "group", "");
+      CookingBookCategory var4 = CookingBookCategory.CODEC.byName(GsonHelper.getAsString(param1, "category", null), CookingBookCategory.MISC);
+      JsonElement var5 = GsonHelper.isArrayNode(param1, "ingredient")
+         ? GsonHelper.getAsJsonArray(param1, "ingredient")
+         : GsonHelper.getAsJsonObject(param1, "ingredient");
+      Ingredient var6 = Ingredient.fromJson(var5);
+      String var7 = GsonHelper.getAsString(param1, "result");
+      ResourceLocation var8 = new ResourceLocation(var7);
+      ItemStack var9 = new ItemStack(BuiltInRegistries.ITEM.getOptional(var8).orElseThrow(() -> new IllegalStateException("Item: " + var7 + " does not exist")));
+      float var10 = GsonHelper.getAsFloat(param1, "experience", 0.0F);
+      int var11 = GsonHelper.getAsInt(param1, "cookingtime", this.defaultCookingTime);
+      return this.factory.create(param0, var3, var4, var6, var9, var10, var11);
+   }
+
+   public T fromNetwork(ResourceLocation param0, FriendlyByteBuf param1) {
+      String var3 = param1.readUtf();
+      CookingBookCategory var4 = param1.readEnum(CookingBookCategory.class);
+      Ingredient var5 = Ingredient.fromNetwork(param1);
+      ItemStack var6 = param1.readItem();
+      float var7 = param1.readFloat();
+      int var8 = param1.readVarInt();
+      return this.factory.create(param0, var3, var4, var5, var6, var7, var8);
+   }
+
+   public void toNetwork(FriendlyByteBuf param0, T param1) {
+      param0.writeUtf(param1.group);
+      param0.writeEnum(param1.category());
+      param1.ingredient.toNetwork(param0);
+      param0.writeItem(param1.result);
+      param0.writeFloat(param1.experience);
+      param0.writeVarInt(param1.cookingTime);
+   }
+
+   interface CookieBaker<T extends AbstractCookingRecipe> {
+      T create(ResourceLocation var1, String var2, CookingBookCategory var3, Ingredient var4, ItemStack var5, float var6, int var7);
+   }
+}

@@ -1,0 +1,78 @@
+package net.minecraft.world.item;
+
+import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.ImmutableMultimap.Builder;
+import net.minecraft.core.BlockPos;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.Attribute;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+
+public class DiggerItem extends TieredItem implements Vanishable {
+   private final TagKey<Block> blocks;
+   protected final float speed;
+   private final float attackDamageBaseline;
+   private final Multimap<Attribute, AttributeModifier> defaultModifiers;
+
+   protected DiggerItem(float param0, float param1, Tier param2, TagKey<Block> param3, Item.Properties param4) {
+      super(param2, param4);
+      this.blocks = param3;
+      this.speed = param2.getSpeed();
+      this.attackDamageBaseline = param0 + param2.getAttackDamageBonus();
+      Builder<Attribute, AttributeModifier> var6 = ImmutableMultimap.builder();
+      var6.put(
+         Attributes.ATTACK_DAMAGE,
+         new AttributeModifier(BASE_ATTACK_DAMAGE_UUID, "Tool modifier", this.attackDamageBaseline, AttributeModifier.Operation.ADDITION)
+      );
+      var6.put(Attributes.ATTACK_SPEED, new AttributeModifier(BASE_ATTACK_SPEED_UUID, "Tool modifier", param1, AttributeModifier.Operation.ADDITION));
+      this.defaultModifiers = var6.build();
+   }
+
+   @Override
+   public float getDestroySpeed(ItemStack param0, BlockState param1) {
+      return param1.is(this.blocks) ? this.speed : 1.0F;
+   }
+
+   @Override
+   public boolean hurtEnemy(ItemStack param0, LivingEntity param1, LivingEntity param2) {
+      param0.hurtAndBreak(2, param2, l_param0 -> l_param0.broadcastBreakEvent(EquipmentSlot.MAINHAND));
+      return true;
+   }
+
+   @Override
+   public boolean mineBlock(ItemStack param0, Level param1, BlockState param2, BlockPos param3, LivingEntity param4) {
+      if (!param1.isClientSide && param2.getDestroySpeed(param1, param3) != 0.0F) {
+         param0.hurtAndBreak(1, param4, l_param0 -> l_param0.broadcastBreakEvent(EquipmentSlot.MAINHAND));
+      }
+
+      return true;
+   }
+
+   @Override
+   public Multimap<Attribute, AttributeModifier> getDefaultAttributeModifiers(EquipmentSlot param0) {
+      return param0 == EquipmentSlot.MAINHAND ? this.defaultModifiers : super.getDefaultAttributeModifiers(param0);
+   }
+
+   public float getAttackDamage() {
+      return this.attackDamageBaseline;
+   }
+
+   @Override
+   public boolean isCorrectToolForDrops(BlockState param0) {
+      int var2 = this.getTier().getLevel();
+      if (var2 < 3 && param0.is(BlockTags.NEEDS_DIAMOND_TOOL)) {
+         return false;
+      } else if (var2 < 2 && param0.is(BlockTags.NEEDS_IRON_TOOL)) {
+         return false;
+      } else {
+         return var2 < 1 && param0.is(BlockTags.NEEDS_STONE_TOOL) ? false : param0.is(this.blocks);
+      }
+   }
+}

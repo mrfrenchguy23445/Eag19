@@ -1,0 +1,118 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "org.teavm",
+    "module": "teavm-relocated-libs-asm-tree",
+    "version": "0.9.2",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.4"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 11,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "org.ow2.asm",
+          "module": "asm-tree",
+          "version": {
+            "requires": "9.5"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "teavm-relocated-libs-asm-tree-0.9.2.jar",
+          "url": "teavm-relocated-libs-asm-tree-0.9.2.jar",
+          "size": 51113,
+          "sha512": "00cc9a9b83370c3808aa9dbd298658aaf6613896da4c166acb1dac77a615a2f17102ee95a4d228b7b4343ca8f4a3c569b8574c432c44e649d6520cd093a9f1a4",
+          "sha256": "94409f3edd4c87cf0e9a96e84601a007d7ebc8b64494a435d3b0a0201ae4d1db",
+          "sha1": "9f48fe18a14625836e17825d97f775630cc3e5f4",
+          "md5": "d60d3f127a39b39f14cb0e33670b77c5"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 11,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "org.teavm",
+          "module": "teavm-relocated-libs-asm",
+          "version": {
+            "requires": "0.9.2"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "teavm-relocated-libs-asm-tree-0.9.2.jar",
+          "url": "teavm-relocated-libs-asm-tree-0.9.2.jar",
+          "size": 51113,
+          "sha512": "00cc9a9b83370c3808aa9dbd298658aaf6613896da4c166acb1dac77a615a2f17102ee95a4d228b7b4343ca8f4a3c569b8574c432c44e649d6520cd093a9f1a4",
+          "sha256": "94409f3edd4c87cf0e9a96e84601a007d7ebc8b64494a435d3b0a0201ae4d1db",
+          "sha1": "9f48fe18a14625836e17825d97f775630cc3e5f4",
+          "md5": "d60d3f127a39b39f14cb0e33670b77c5"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "teavm-relocated-libs-asm-tree-0.9.2-sources.jar",
+          "url": "teavm-relocated-libs-asm-tree-0.9.2-sources.jar",
+          "size": 261,
+          "sha512": "1487e5a20c9e4d74f298e07c42e96a61be11b7a768c3fbc199ee138cd68e1fc2267d1cfe3f11f288acc05df755315344d052cc5f6f751f126ab4fe1caa5125ea",
+          "sha256": "c6deada2fac53b8ea6523dbda77597b128006674616f140f04df23264c6d1aa3",
+          "sha1": "2ad14aed781c4a73ed4dbb421966d408a0a06686",
+          "md5": "f43436d6bec321290f6af228ad602604"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "teavm-relocated-libs-asm-tree-0.9.2-javadoc.jar",
+          "url": "teavm-relocated-libs-asm-tree-0.9.2-javadoc.jar",
+          "size": 261,
+          "sha512": "1487e5a20c9e4d74f298e07c42e96a61be11b7a768c3fbc199ee138cd68e1fc2267d1cfe3f11f288acc05df755315344d052cc5f6f751f126ab4fe1caa5125ea",
+          "sha256": "c6deada2fac53b8ea6523dbda77597b128006674616f140f04df23264c6d1aa3",
+          "sha1": "2ad14aed781c4a73ed4dbb421966d408a0a06686",
+          "md5": "f43436d6bec321290f6af228ad602604"
+        }
+      ]
+    }
+  ]
+}

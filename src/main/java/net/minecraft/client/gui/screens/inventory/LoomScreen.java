@@ -1,0 +1,276 @@
+package net.minecraft.client.gui.screens.inventory;
+
+import com.mojang.blaze3d.platform.Lighting;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.datafixers.util.Pair;
+import java.util.List;
+import javax.annotation.Nullable;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.model.geom.ModelLayers;
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.blockentity.BannerRenderer;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.resources.model.ModelBakery;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.core.Holder;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.LoomMenu;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.BannerItem;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.entity.BannerBlockEntity;
+import net.minecraft.world.level.block.entity.BannerPattern;
+import net.minecraft.world.level.block.entity.BannerPatterns;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+
+public class LoomScreen extends AbstractContainerScreen<LoomMenu> {
+   private static final ResourceLocation BG_LOCATION = new ResourceLocation("textures/gui/container/loom.png");
+   private static final int PATTERN_COLUMNS = 4;
+   private static final int PATTERN_ROWS = 4;
+   private static final int SCROLLER_WIDTH = 12;
+   private static final int SCROLLER_HEIGHT = 15;
+   private static final int PATTERN_IMAGE_SIZE = 14;
+   private static final int SCROLLER_FULL_HEIGHT = 56;
+   private static final int PATTERNS_X = 60;
+   private static final int PATTERNS_Y = 13;
+   private ModelPart flag;
+   @Nullable
+   private List<Pair<Holder<BannerPattern>, DyeColor>> resultBannerPatterns;
+   private ItemStack bannerStack = ItemStack.EMPTY;
+   private ItemStack dyeStack = ItemStack.EMPTY;
+   private ItemStack patternStack = ItemStack.EMPTY;
+   private boolean displayPatterns;
+   private boolean hasMaxPatterns;
+   private float scrollOffs;
+   private boolean scrolling;
+   private int startRow;
+
+   public LoomScreen(LoomMenu param0, Inventory param1, Component param2) {
+      super(param0, param1, param2);
+      param0.registerUpdateListener(this::containerChanged);
+      this.titleLabelY -= 2;
+   }
+
+   @Override
+   protected void init() {
+      super.init();
+      this.flag = this.minecraft.getEntityModels().bakeLayer(ModelLayers.BANNER).getChild("flag");
+   }
+
+   @Override
+   public void render(PoseStack param0, int param1, int param2, float param3) {
+      super.render(param0, param1, param2, param3);
+      this.renderTooltip(param0, param1, param2);
+   }
+
+   private int totalRowCount() {
+      return Mth.positiveCeilDiv(this.menu.getSelectablePatterns().size(), 4);
+   }
+
+   @Override
+   protected void renderBg(PoseStack param0, float param1, int param2, int param3) {
+      this.renderBackground(param0);
+      RenderSystem.setShaderTexture(0, BG_LOCATION);
+      int var5 = this.leftPos;
+      int var6 = this.topPos;
+      blit(param0, var5, var6, 0, 0, this.imageWidth, this.imageHeight);
+      Slot var7 = this.menu.getBannerSlot();
+      Slot var8 = this.menu.getDyeSlot();
+      Slot var9 = this.menu.getPatternSlot();
+      Slot var10 = this.menu.getResultSlot();
+      if (!var7.hasItem()) {
+         blit(param0, var5 + var7.x, var6 + var7.y, this.imageWidth, 0, 16, 16);
+      }
+
+      if (!var8.hasItem()) {
+         blit(param0, var5 + var8.x, var6 + var8.y, this.imageWidth + 16, 0, 16, 16);
+      }
+
+      if (!var9.hasItem()) {
+         blit(param0, var5 + var9.x, var6 + var9.y, this.imageWidth + 32, 0, 16, 16);
+      }
+
+      int var11 = (int)(41.0F * this.scrollOffs);
+      blit(param0, var5 + 119, var6 + 13 + var11, 232 + (this.displayPatterns ? 0 : 12), 0, 12, 15);
+      Lighting.setupForFlatItems();
+      if (this.resultBannerPatterns != null && !this.hasMaxPatterns) {
+         MultiBufferSource.BufferSource var12 = this.minecraft.renderBuffers().bufferSource();
+         param0.pushPose();
+         param0.translate(var5 + 139, var6 + 52, 0.0F);
+         param0.scale(24.0F, -24.0F, 1.0F);
+         param0.translate(0.5F, 0.5F, 0.5F);
+         float var13 = 0.6666667F;
+         param0.scale(0.6666667F, -0.6666667F, -0.6666667F);
+         this.flag.xRot = 0.0F;
+         this.flag.y = -32.0F;
+         BannerRenderer.renderPatterns(param0, var12, 15728880, OverlayTexture.NO_OVERLAY, this.flag, ModelBakery.BANNER_BASE, true, this.resultBannerPatterns);
+         param0.popPose();
+         var12.endBatch();
+      } else if (this.hasMaxPatterns) {
+         blit(param0, var5 + var10.x - 2, var6 + var10.y - 2, this.imageWidth, 17, 17, 16);
+      }
+
+      if (this.displayPatterns) {
+         int var12 = var5 + 60;
+         int var13 = var6 + 13;
+         List<Holder<BannerPattern>> var14 = this.menu.getSelectablePatterns();
+
+         label64:
+         for (int var15 = 0; var15 < 4; var15++) {
+            for (int var16 = 0; var16 < 4; var16++) {
+               int var17 = var15 + this.startRow;
+               int var18 = var17 * 4 + var16;
+               if (var18 >= var14.size()) {
+                  break label64;
+               }
+
+               RenderSystem.setShaderTexture(0, BG_LOCATION);
+               int var19 = var12 + var16 * 14;
+               int var20 = var13 + var15 * 14;
+               boolean var21 = param2 >= var19 && param3 >= var20 && param2 < var19 + 14 && param3 < var20 + 14;
+               int var22;
+               if (var18 == this.menu.getSelectedBannerPatternIndex()) {
+                  var22 = this.imageHeight + 14;
+               } else if (var21) {
+                  var22 = this.imageHeight + 28;
+               } else {
+                  var22 = this.imageHeight;
+               }
+
+               blit(param0, var19, var20, 0, var22, 14, 14);
+               this.renderPattern(var14.get(var18), var19, var20);
+            }
+         }
+      }
+
+      Lighting.setupFor3DItems();
+   }
+
+   private void renderPattern(Holder<BannerPattern> param0, int param1, int param2) {
+      CompoundTag var4 = new CompoundTag();
+      ListTag var5 = new BannerPattern.Builder().addPattern(BannerPatterns.BASE, DyeColor.GRAY).addPattern(param0, DyeColor.WHITE).toListTag();
+      var4.put("Patterns", var5);
+      ItemStack var6 = new ItemStack(Items.GRAY_BANNER);
+      BlockItem.setBlockEntityData(var6, BlockEntityType.BANNER, var4);
+      PoseStack var7 = new PoseStack();
+      var7.pushPose();
+      var7.translate(param1 + 0.5F, param2 + 16, 0.0F);
+      var7.scale(6.0F, -6.0F, 1.0F);
+      var7.translate(0.5F, 0.5F, 0.0F);
+      var7.translate(0.5F, 0.5F, 0.5F);
+      float var8 = 0.6666667F;
+      var7.scale(0.6666667F, -0.6666667F, -0.6666667F);
+      MultiBufferSource.BufferSource var9 = this.minecraft.renderBuffers().bufferSource();
+      this.flag.xRot = 0.0F;
+      this.flag.y = -32.0F;
+      List<Pair<Holder<BannerPattern>, DyeColor>> var10 = BannerBlockEntity.createPatterns(DyeColor.GRAY, BannerBlockEntity.getItemPatterns(var6));
+      BannerRenderer.renderPatterns(var7, var9, 15728880, OverlayTexture.NO_OVERLAY, this.flag, ModelBakery.BANNER_BASE, true, var10);
+      var7.popPose();
+      var9.endBatch();
+   }
+
+   @Override
+   public boolean mouseClicked(double param0, double param2, int param4) {
+      this.scrolling = false;
+      if (this.displayPatterns) {
+         int var6 = this.leftPos + 60;
+         int var7 = this.topPos + 13;
+
+         for (int var8 = 0; var8 < 4; var8++) {
+            for (int var9 = 0; var9 < 4; var9++) {
+               double var10 = param0 - (var6 + var9 * 14);
+               double var12 = param2 - (var7 + var8 * 14);
+               int var14 = var8 + this.startRow;
+               int var15 = var14 * 4 + var9;
+               if (var10 >= 0.0 && var12 >= 0.0 && var10 < 14.0 && var12 < 14.0 && this.menu.clickMenuButton(this.minecraft.player, var15)) {
+                  Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_LOOM_SELECT_PATTERN, 1.0F));
+                  this.minecraft.gameMode.handleInventoryButtonClick(this.menu.containerId, var15);
+                  return true;
+               }
+            }
+         }
+
+         var6 = this.leftPos + 119;
+         var7 = this.topPos + 9;
+         if (param0 >= var6 && param0 < var6 + 12 && param2 >= var7 && param2 < var7 + 56) {
+            this.scrolling = true;
+         }
+      }
+
+      return super.mouseClicked(param0, param2, param4);
+   }
+
+   @Override
+   public boolean mouseDragged(double param0, double param2, int param4, double param5, double param7) {
+      int var10 = this.totalRowCount() - 4;
+      if (this.scrolling && this.displayPatterns && var10 > 0) {
+         int var11 = this.topPos + 13;
+         int var12 = var11 + 56;
+         this.scrollOffs = ((float)param2 - var11 - 7.5F) / (var12 - var11 - 15.0F);
+         this.scrollOffs = Mth.clamp(this.scrollOffs, 0.0F, 1.0F);
+         this.startRow = Math.max((int)(this.scrollOffs * var10 + 0.5), 0);
+         return true;
+      } else {
+         return super.mouseDragged(param0, param2, param4, param5, param7);
+      }
+   }
+
+   @Override
+   public boolean mouseScrolled(double param0, double param2, double param4) {
+      int var7 = this.totalRowCount() - 4;
+      if (this.displayPatterns && var7 > 0) {
+         float var8 = (float)param4 / var7;
+         this.scrollOffs = Mth.clamp(this.scrollOffs - var8, 0.0F, 1.0F);
+         this.startRow = Math.max((int)(this.scrollOffs * var7 + 0.5F), 0);
+      }
+
+      return true;
+   }
+
+   @Override
+   protected boolean hasClickedOutside(double param0, double param2, int param4, int param5, int param6) {
+      return param0 < param4 || param2 < param5 || param0 >= param4 + this.imageWidth || param2 >= param5 + this.imageHeight;
+   }
+
+   private void containerChanged() {
+      ItemStack var1 = this.menu.getResultSlot().getItem();
+      if (var1.isEmpty()) {
+         this.resultBannerPatterns = null;
+      } else {
+         this.resultBannerPatterns = BannerBlockEntity.createPatterns(((BannerItem)var1.getItem()).getColor(), BannerBlockEntity.getItemPatterns(var1));
+      }
+
+      ItemStack var2 = this.menu.getBannerSlot().getItem();
+      ItemStack var3 = this.menu.getDyeSlot().getItem();
+      ItemStack var4 = this.menu.getPatternSlot().getItem();
+      CompoundTag var5 = BlockItem.getBlockEntityData(var2);
+      this.hasMaxPatterns = var5 != null && var5.contains("Patterns", 9) && !var2.isEmpty() && var5.getList("Patterns", 10).size() >= 6;
+      if (this.hasMaxPatterns) {
+         this.resultBannerPatterns = null;
+      }
+
+      if (!ItemStack.matches(var2, this.bannerStack) || !ItemStack.matches(var3, this.dyeStack) || !ItemStack.matches(var4, this.patternStack)) {
+         this.displayPatterns = !var2.isEmpty() && !var3.isEmpty() && !this.hasMaxPatterns && !this.menu.getSelectablePatterns().isEmpty();
+      }
+
+      if (this.startRow >= this.totalRowCount()) {
+         this.startRow = 0;
+         this.scrollOffs = 0.0F;
+      }
+
+      this.bannerStack = var2.copy();
+      this.dyeStack = var3.copy();
+      this.patternStack = var4.copy();
+   }
+}

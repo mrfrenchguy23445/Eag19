@@ -1,0 +1,47 @@
+package net.minecraft.client.renderer.entity.layers;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
+import net.minecraft.client.model.EndermanModel;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.block.BlockRenderDispatcher;
+import net.minecraft.client.renderer.entity.RenderLayerParent;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.world.entity.monster.EnderMan;
+import net.minecraft.world.level.block.state.BlockState;
+
+public class CarriedBlockLayer extends RenderLayer<EnderMan, EndermanModel<EnderMan>> {
+   private final BlockRenderDispatcher blockRenderer;
+
+   public CarriedBlockLayer(RenderLayerParent<EnderMan, EndermanModel<EnderMan>> param0, BlockRenderDispatcher param1) {
+      super(param0);
+      this.blockRenderer = param1;
+   }
+
+   public void render(
+      PoseStack param0,
+      MultiBufferSource param1,
+      int param2,
+      EnderMan param3,
+      float param4,
+      float param5,
+      float param6,
+      float param7,
+      float param8,
+      float param9
+   ) {
+      BlockState var11 = param3.getCarriedBlock();
+      if (var11 != null) {
+         param0.pushPose();
+         param0.translate(0.0F, 0.6875F, -0.75F);
+         param0.mulPose(Axis.XP.rotationDegrees(20.0F));
+         param0.mulPose(Axis.YP.rotationDegrees(45.0F));
+         param0.translate(0.25F, 0.1875F, 0.25F);
+         float var12 = 0.5F;
+         param0.scale(-0.5F, -0.5F, 0.5F);
+         param0.mulPose(Axis.YP.rotationDegrees(90.0F));
+         this.blockRenderer.renderSingleBlock(var11, param0, param1, param2, OverlayTexture.NO_OVERLAY);
+         param0.popPose();
+      }
+   }
+}

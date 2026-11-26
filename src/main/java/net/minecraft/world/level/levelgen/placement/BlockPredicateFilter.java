@@ -1,0 +1,32 @@
+package net.minecraft.world.level.levelgen.placement;
+
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.core.BlockPos;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.levelgen.blockpredicates.BlockPredicate;
+
+public class BlockPredicateFilter extends PlacementFilter {
+   public static final Codec<BlockPredicateFilter> CODEC = RecordCodecBuilder.create(
+      param0 -> param0.group(BlockPredicate.CODEC.fieldOf("predicate").forGetter(l_param0 -> l_param0.predicate)).apply(param0, BlockPredicateFilter::new)
+   );
+   private final BlockPredicate predicate;
+
+   private BlockPredicateFilter(BlockPredicate param0) {
+      this.predicate = param0;
+   }
+
+   public static BlockPredicateFilter forPredicate(BlockPredicate param0) {
+      return new BlockPredicateFilter(param0);
+   }
+
+   @Override
+   protected boolean shouldPlace(PlacementContext param0, RandomSource param1, BlockPos param2) {
+      return this.predicate.test(param0.getLevel(), param2);
+   }
+
+   @Override
+   public PlacementModifierType<?> type() {
+      return PlacementModifierType.BLOCK_PREDICATE_FILTER;
+   }
+}

@@ -1,0 +1,114 @@
+package net.minecraft.client.gui.screens;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+import net.minecraft.Util;
+import net.minecraft.client.GameNarrator;
+import net.minecraft.client.gui.narration.NarratedElementType;
+import net.minecraft.client.gui.narration.NarrationElementOutput;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.progress.StoringChunkProgressListener;
+import net.minecraft.util.Mth;
+import net.minecraft.world.level.chunk.ChunkStatus;
+
+public class LevelLoadingScreen extends Screen {
+   private static final long NARRATION_DELAY_MS = 2000L;
+   private final StoringChunkProgressListener progressListener;
+   private long lastNarration = -1L;
+   private boolean done;
+   private static final Object2IntMap<ChunkStatus> COLORS = Util.make(new Object2IntOpenHashMap<>(), param0 -> {
+      param0.defaultReturnValue(0);
+      param0.put(ChunkStatus.EMPTY, 5526612);
+      param0.put(ChunkStatus.STRUCTURE_STARTS, 10066329);
+      param0.put(ChunkStatus.STRUCTURE_REFERENCES, 6250897);
+      param0.put(ChunkStatus.BIOMES, 8434258);
+      param0.put(ChunkStatus.NOISE, 13750737);
+      param0.put(ChunkStatus.SURFACE, 7497737);
+      param0.put(ChunkStatus.CARVERS, 7169628);
+      param0.put(ChunkStatus.LIQUID_CARVERS, 3159410);
+      param0.put(ChunkStatus.FEATURES, 2213376);
+      param0.put(ChunkStatus.LIGHT, 13421772);
+      param0.put(ChunkStatus.SPAWN, 15884384);
+      param0.put(ChunkStatus.HEIGHTMAPS, 15658734);
+      param0.put(ChunkStatus.FULL, 16777215);
+   });
+
+   public LevelLoadingScreen(StoringChunkProgressListener param0) {
+      super(GameNarrator.NO_TITLE);
+      this.progressListener = param0;
+   }
+
+   @Override
+   public boolean shouldCloseOnEsc() {
+      return false;
+   }
+
+   @Override
+   protected boolean shouldNarrateNavigation() {
+      return false;
+   }
+
+   @Override
+   public void removed() {
+      this.done = true;
+      this.triggerImmediateNarration(true);
+   }
+
+   @Override
+   protected void updateNarratedWidget(NarrationElementOutput param0) {
+      if (this.done) {
+         param0.add(NarratedElementType.TITLE, Component.translatable("narrator.loading.done"));
+      } else {
+         String var2 = this.getFormattedProgress();
+         param0.add(NarratedElementType.TITLE, var2);
+      }
+   }
+
+   private String getFormattedProgress() {
+      return Mth.clamp(this.progressListener.getProgress(), 0, 100) + "%";
+   }
+
+   @Override
+   public void render(PoseStack param0, int param1, int param2, float param3) {
+      this.renderBackground(param0);
+      long var5 = Util.getMillis();
+      if (var5 - this.lastNarration > 2000L) {
+         this.lastNarration = var5;
+         this.triggerImmediateNarration(true);
+      }
+
+      int var7 = this.width / 2;
+      int var8 = this.height / 2;
+      int var9 = 30;
+      renderChunks(param0, this.progressListener, var7, var8 + 30, 2, 0);
+      drawCenteredString(param0, this.font, this.getFormattedProgress(), var7, var8 - 9 / 2 - 30, 16777215);
+   }
+
+   public static void renderChunks(PoseStack param0, StoringChunkProgressListener param1, int param2, int param3, int param4, int param5) {
+      int var6 = param4 + param5;
+      int var7 = param1.getFullDiameter();
+      int var8 = var7 * var6 - param5;
+      int var9 = param1.getDiameter();
+      int var10 = var9 * var6 - param5;
+      int var11 = param2 - var10 / 2;
+      int var12 = param3 - var10 / 2;
+      int var13 = var8 / 2 + 1;
+      int var14 = -16772609;
+      if (param5 != 0) {
+         fill(param0, param2 - var13, param3 - var13, param2 - var13 + 1, param3 + var13, -16772609);
+         fill(param0, param2 + var13 - 1, param3 - var13, param2 + var13, param3 + var13, -16772609);
+         fill(param0, param2 - var13, param3 - var13, param2 + var13, param3 - var13 + 1, -16772609);
+         fill(param0, param2 - var13, param3 + var13 - 1, param2 + var13, param3 + var13, -16772609);
+      }
+
+      for (int var15 = 0; var15 < var9; var15++) {
+         for (int var16 = 0; var16 < var9; var16++) {
+            ChunkStatus var17 = param1.getStatus(var15, var16);
+            int var18 = var11 + var15 * var6;
+            int var19 = var12 + var16 * var6;
+            fill(param0, var18, var19, var18 + param4, var19 + param4, COLORS.getInt(var17) | 0xFF000000);
+         }
+      }
+   }
+}

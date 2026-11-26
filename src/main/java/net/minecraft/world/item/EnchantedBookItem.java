@@ -1,0 +1,71 @@
+package net.minecraft.world.item;
+
+import java.util.List;
+import javax.annotation.Nullable;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.item.enchantment.EnchantmentInstance;
+import net.minecraft.world.level.Level;
+
+public class EnchantedBookItem extends Item {
+   public static final String TAG_STORED_ENCHANTMENTS = "StoredEnchantments";
+
+   public EnchantedBookItem(Item.Properties param0) {
+      super(param0);
+   }
+
+   @Override
+   public boolean isFoil(ItemStack param0) {
+      return true;
+   }
+
+   @Override
+   public boolean isEnchantable(ItemStack param0) {
+      return false;
+   }
+
+   public static ListTag getEnchantments(ItemStack param0) {
+      CompoundTag var1 = param0.getTag();
+      return var1 != null ? var1.getList("StoredEnchantments", 10) : new ListTag();
+   }
+
+   @Override
+   public void appendHoverText(ItemStack param0, @Nullable Level param1, List<Component> param2, TooltipFlag param3) {
+      super.appendHoverText(param0, param1, param2, param3);
+      ItemStack.appendEnchantmentNames(param2, getEnchantments(param0));
+   }
+
+   public static void addEnchantment(ItemStack param0, EnchantmentInstance param1) {
+      ListTag var2 = getEnchantments(param0);
+      boolean var3 = true;
+      ResourceLocation var4 = EnchantmentHelper.getEnchantmentId(param1.enchantment);
+
+      for (int var5 = 0; var5 < var2.size(); var5++) {
+         CompoundTag var6 = var2.getCompound(var5);
+         ResourceLocation var7 = EnchantmentHelper.getEnchantmentId(var6);
+         if (var7 != null && var7.equals(var4)) {
+            if (EnchantmentHelper.getEnchantmentLevel(var6) < param1.level) {
+               EnchantmentHelper.setEnchantmentLevel(var6, param1.level);
+            }
+
+            var3 = false;
+            break;
+         }
+      }
+
+      if (var3) {
+         var2.add(EnchantmentHelper.storeEnchantment(var4, param1.level));
+      }
+
+      param0.getOrCreateTag().put("StoredEnchantments", var2);
+   }
+
+   public static ItemStack createForEnchantment(EnchantmentInstance param0) {
+      ItemStack var1 = new ItemStack(Items.ENCHANTED_BOOK);
+      addEnchantment(var1, param0);
+      return var1;
+   }
+}

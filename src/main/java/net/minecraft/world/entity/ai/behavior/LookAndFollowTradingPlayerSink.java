@@ -1,0 +1,53 @@
+package net.minecraft.world.entity.ai.behavior;
+
+import com.google.common.collect.ImmutableMap;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.ai.Brain;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
+import net.minecraft.world.entity.ai.memory.MemoryStatus;
+import net.minecraft.world.entity.ai.memory.WalkTarget;
+import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.player.Player;
+
+public class LookAndFollowTradingPlayerSink extends Behavior<Villager> {
+   private final float speedModifier;
+
+   public LookAndFollowTradingPlayerSink(float param0) {
+      super(ImmutableMap.of(MemoryModuleType.WALK_TARGET, MemoryStatus.REGISTERED, MemoryModuleType.LOOK_TARGET, MemoryStatus.REGISTERED), Integer.MAX_VALUE);
+      this.speedModifier = param0;
+   }
+
+   protected boolean checkExtraStartConditions(ServerLevel param0, Villager param1) {
+      Player var3 = param1.getTradingPlayer();
+      return param1.isAlive() && var3 != null && !param1.isInWater() && !param1.hurtMarked && param1.distanceToSqr(var3) <= 16.0 && var3.containerMenu != null;
+   }
+
+   protected boolean canStillUse(ServerLevel param0, Villager param1, long param2) {
+      return this.checkExtraStartConditions(param0, param1);
+   }
+
+   protected void start(ServerLevel param0, Villager param1, long param2) {
+      this.followPlayer(param1);
+   }
+
+   protected void stop(ServerLevel param0, Villager param1, long param2) {
+      Brain<?> var5 = param1.getBrain();
+      var5.eraseMemory(MemoryModuleType.WALK_TARGET);
+      var5.eraseMemory(MemoryModuleType.LOOK_TARGET);
+   }
+
+   protected void tick(ServerLevel param0, Villager param1, long param2) {
+      this.followPlayer(param1);
+   }
+
+   @Override
+   protected boolean timedOut(long param0) {
+      return false;
+   }
+
+   private void followPlayer(Villager param0) {
+      Brain<?> var2 = param0.getBrain();
+      var2.setMemory(MemoryModuleType.WALK_TARGET, new WalkTarget(new EntityTracker(param0.getTradingPlayer(), false), this.speedModifier, 2));
+      var2.setMemory(MemoryModuleType.LOOK_TARGET, new EntityTracker(param0.getTradingPlayer(), true));
+   }
+}

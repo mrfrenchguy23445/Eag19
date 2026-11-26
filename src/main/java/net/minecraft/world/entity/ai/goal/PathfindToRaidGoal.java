@@ -1,0 +1,75 @@
+package net.minecraft.world.entity.ai.goal;
+
+import com.google.common.collect.Sets;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Set;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.ai.util.DefaultRandomPos;
+import net.minecraft.world.entity.raid.Raid;
+import net.minecraft.world.entity.raid.Raider;
+import net.minecraft.world.entity.raid.Raids;
+import net.minecraft.world.phys.Vec3;
+
+public class PathfindToRaidGoal<T extends Raider> extends Goal {
+   private static final int RECRUITMENT_SEARCH_TICK_DELAY = 20;
+   private static final float SPEED_MODIFIER = 1.0F;
+   private final T mob;
+   private int recruitmentTick;
+
+   public PathfindToRaidGoal(T param0) {
+      this.mob = param0;
+      this.setFlags(EnumSet.of(Goal.Flag.MOVE));
+   }
+
+   @Override
+   public boolean canUse() {
+      return this.mob.getTarget() == null
+         && !this.mob.isVehicle()
+         && this.mob.hasActiveRaid()
+         && !this.mob.getCurrentRaid().isOver()
+         && !((ServerLevel)this.mob.level).isVillage(this.mob.blockPosition());
+   }
+
+   @Override
+   public boolean canContinueToUse() {
+      return this.mob.hasActiveRaid()
+         && !this.mob.getCurrentRaid().isOver()
+         && this.mob.level instanceof ServerLevel
+         && !((ServerLevel)this.mob.level).isVillage(this.mob.blockPosition());
+   }
+
+   @Override
+   public void tick() {
+      if (this.mob.hasActiveRaid()) {
+         Raid var1 = this.mob.getCurrentRaid();
+         if (this.mob.tickCount > this.recruitmentTick) {
+            this.recruitmentTick = this.mob.tickCount + 20;
+            this.recruitNearby(var1);
+         }
+
+         if (!this.mob.isPathFinding()) {
+            Vec3 var2 = DefaultRandomPos.getPosTowards(this.mob, 15, 4, Vec3.atBottomCenterOf(var1.getCenter()), (float) (Math.PI / 2));
+            if (var2 != null) {
+               this.mob.getNavigation().moveTo(var2.x, var2.y, var2.z, 1.0);
+            }
+         }
+      }
+   }
+
+   private void recruitNearby(Raid param0) {
+      if (param0.isActive()) {
+         Set<Raider> var2 = Sets.newHashSet();
+         List<Raider> var3 = this.mob
+            .level
+            .getEntitiesOfClass(
+               Raider.class, this.mob.getBoundingBox().inflate(16.0), l_param1 -> !l_param1.hasActiveRaid() && Raids.canJoinRaid(l_param1, param0)
+            );
+         var2.addAll(var3);
+
+         for (Raider var5 : var2) {
+            param0.joinRaid(param0.getGroupsSpawned(), var5, null, true);
+         }
+      }
+   }
+}

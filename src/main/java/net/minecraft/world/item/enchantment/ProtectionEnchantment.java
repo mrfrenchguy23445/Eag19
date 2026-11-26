@@ -1,0 +1,99 @@
+package net.minecraft.world.item.enchantment;
+
+import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.util.Mth;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
+
+public class ProtectionEnchantment extends Enchantment {
+   public final ProtectionEnchantment.Type type;
+
+   public ProtectionEnchantment(Enchantment.Rarity param0, ProtectionEnchantment.Type param1, EquipmentSlot... param2) {
+      super(param0, param1 == ProtectionEnchantment.Type.FALL ? EnchantmentCategory.ARMOR_FEET : EnchantmentCategory.ARMOR, param2);
+      this.type = param1;
+   }
+
+   @Override
+   public int getMinCost(int param0) {
+      return this.type.getMinCost() + (param0 - 1) * this.type.getLevelCost();
+   }
+
+   @Override
+   public int getMaxCost(int param0) {
+      return this.getMinCost(param0) + this.type.getLevelCost();
+   }
+
+   @Override
+   public int getMaxLevel() {
+      return 4;
+   }
+
+   @Override
+   public int getDamageProtection(int param0, DamageSource param1) {
+      if (param1.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
+         return 0;
+      } else if (this.type == ProtectionEnchantment.Type.ALL) {
+         return param0;
+      } else if (this.type == ProtectionEnchantment.Type.FIRE && param1.is(DamageTypeTags.IS_FIRE)) {
+         return param0 * 2;
+      } else if (this.type == ProtectionEnchantment.Type.FALL && param1.is(DamageTypeTags.IS_FALL)) {
+         return param0 * 3;
+      } else if (this.type == ProtectionEnchantment.Type.EXPLOSION && param1.is(DamageTypeTags.IS_EXPLOSION)) {
+         return param0 * 2;
+      } else {
+         return this.type == ProtectionEnchantment.Type.PROJECTILE && param1.is(DamageTypeTags.IS_PROJECTILE) ? param0 * 2 : 0;
+      }
+   }
+
+   @Override
+   public boolean checkCompatibility(Enchantment param0) {
+      if (param0 instanceof ProtectionEnchantment var2) {
+         return this.type == var2.type ? false : this.type == ProtectionEnchantment.Type.FALL || var2.type == ProtectionEnchantment.Type.FALL;
+      } else {
+         return super.checkCompatibility(param0);
+      }
+   }
+
+   public static int getFireAfterDampener(LivingEntity param0, int param1) {
+      int var2 = EnchantmentHelper.getEnchantmentLevel(Enchantments.FIRE_PROTECTION, param0);
+      if (var2 > 0) {
+         param1 -= Mth.floor(param1 * (var2 * 0.15F));
+      }
+
+      return param1;
+   }
+
+   public static double getExplosionKnockbackAfterDampener(LivingEntity param0, double param1) {
+      int var3 = EnchantmentHelper.getEnchantmentLevel(Enchantments.BLAST_PROTECTION, param0);
+      if (var3 > 0) {
+         param1 *= Mth.clamp(1.0 - var3 * 0.15, 0.0, 1.0);
+      }
+
+      return param1;
+   }
+
+   public enum Type {
+      ALL(1, 11),
+      FIRE(10, 8),
+      FALL(5, 6),
+      EXPLOSION(5, 8),
+      PROJECTILE(3, 6);
+
+      private final int minCost;
+      private final int levelCost;
+
+      Type(int param2, int param3) {
+         this.minCost = param2;
+         this.levelCost = param3;
+      }
+
+      public int getMinCost() {
+         return this.minCost;
+      }
+
+      public int getLevelCost() {
+         return this.levelCost;
+      }
+   }
+}

@@ -1,0 +1,39 @@
+package net.minecraft.client.renderer.entity.layers;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.minecraft.client.model.EntityModel;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.entity.RenderLayerParent;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.PowerableMob;
+
+public abstract class EnergySwirlLayer<T extends Entity & PowerableMob, M extends EntityModel<T>> extends RenderLayer<T, M> {
+   public EnergySwirlLayer(RenderLayerParent<T, M> param0) {
+      super(param0);
+   }
+
+   @Override
+   public void render(
+      PoseStack param0, MultiBufferSource param1, int param2, T param3, float param4, float param5, float param6, float param7, float param8, float param9
+   ) {
+      if (param3.isPowered()) {
+         float var11 = param3.tickCount + param6;
+         EntityModel<T> var12 = this.model();
+         var12.prepareMobModel(param3, param4, param5, param6);
+         this.getParentModel().copyPropertiesTo(var12);
+         VertexConsumer var13 = param1.getBuffer(RenderType.energySwirl(this.getTextureLocation(), this.xOffset(var11) % 1.0F, var11 * 0.01F % 1.0F));
+         var12.setupAnim(param3, param4, param5, param7, param8, param9);
+         var12.renderToBuffer(param0, var13, param2, OverlayTexture.NO_OVERLAY, 0.5F, 0.5F, 0.5F, 1.0F);
+      }
+   }
+
+   protected abstract float xOffset(float var1);
+
+   protected abstract ResourceLocation getTextureLocation();
+
+   protected abstract EntityModel<T> model();
+}

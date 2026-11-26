@@ -1,0 +1,74 @@
+package net.minecraft.world.level.block.state.properties;
+
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
+import java.util.Collection;
+import java.util.Optional;
+import java.util.Set;
+
+public class IntegerProperty extends Property<Integer> {
+   private final ImmutableSet<Integer> values;
+   private final int min;
+   private final int max;
+
+   protected IntegerProperty(String param0, int param1, int param2) {
+      super(param0, Integer.class);
+      if (param1 < 0) {
+         throw new IllegalArgumentException("Min value of " + param0 + " must be 0 or greater");
+      }
+
+      if (param2 <= param1) {
+         throw new IllegalArgumentException("Max value of " + param0 + " must be greater than min (" + param1 + ")");
+      }
+
+      this.min = param1;
+      this.max = param2;
+      Set<Integer> var4 = Sets.newHashSet();
+
+      for (int var5 = param1; var5 <= param2; var5++) {
+         var4.add(var5);
+      }
+
+      this.values = ImmutableSet.copyOf(var4);
+   }
+
+   @Override
+   public Collection<Integer> getPossibleValues() {
+      return this.values;
+   }
+
+   @Override
+   public boolean equals(Object param0) {
+      if (this == param0) {
+         return true;
+      } else if (param0 instanceof IntegerProperty && super.equals(param0)) {
+         IntegerProperty var2 = (IntegerProperty)param0;
+         return this.values.equals(var2.values);
+      } else {
+         return false;
+      }
+   }
+
+   @Override
+   public int generateHashCode() {
+      return 31 * super.generateHashCode() + this.values.hashCode();
+   }
+
+   public static IntegerProperty create(String param0, int param1, int param2) {
+      return new IntegerProperty(param0, param1, param2);
+   }
+
+   @Override
+   public Optional<Integer> getValue(String param0) {
+      try {
+         Integer var2 = Integer.valueOf(param0);
+         return var2 >= this.min && var2 <= this.max ? Optional.of(var2) : Optional.empty();
+      } catch (NumberFormatException var2) {
+         return Optional.empty();
+      }
+   }
+
+   public String getName(Integer param0) {
+      return param0.toString();
+   }
+}

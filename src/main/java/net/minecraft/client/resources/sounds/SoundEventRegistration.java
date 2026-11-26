@@ -1,0 +1,30 @@
+package net.minecraft.client.resources.sounds;
+
+import java.util.List;
+import javax.annotation.Nullable;
+
+public class SoundEventRegistration {
+   private final List<Sound> sounds;
+   private final boolean replace;
+   @Nullable
+   private final String subtitle;
+
+   public SoundEventRegistration(List<Sound> param0, boolean param1, @Nullable String param2) {
+      this.sounds = param0;
+      this.replace = param1;
+      this.subtitle = param2;
+   }
+
+   public List<Sound> getSounds() {
+      return this.sounds;
+   }
+
+   public boolean isReplace() {
+      return this.replace;
+   }
+
+   @Nullable
+   public String getSubtitle() {
+      return this.subtitle;
+   }
+}

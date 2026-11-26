@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <bytecodeTargetLevel target="17" />
+  </component>
+  <component name="JavacSettings">
+    <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="eaglercraft-workspace.jdk-shims.main" options="--patch-module &quot;java.base=$PROJECT_DIR$/jdk-shims/src&quot; --add-reads java.base=ALL-UNNAMED" />
+      <module name="eaglercraft-workspace.jdk-shims.sunmisc" options="--patch-module &quot;jdk.unsupported=$PROJECT_DIR$/jdk-shims/src-sunmisc&quot;" />
+    </option>
+  </component>
+</project>

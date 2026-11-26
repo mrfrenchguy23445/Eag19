@@ -1,0 +1,123 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "org.teavm",
+    "module": "teavm-metaprogramming-impl",
+    "version": "0.9.2",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.4"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 11,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "files": [
+        {
+          "name": "teavm-metaprogramming-impl-0.9.2.jar",
+          "url": "teavm-metaprogramming-impl-0.9.2.jar",
+          "size": 110205,
+          "sha512": "d8633ba4923c3020f72d876008715bf05518ceebab8f05b149046a7122647c2767d0c3acc722460d27dff7a9cba993df8efb1c5073b0f6eee52d167fdf5eca63",
+          "sha256": "fc7906325d5e36df7abea8d06d80621347b2bb50b4938d4e3e24cbe891d3db50",
+          "sha1": "8554733693688b17e0f5978784114b05c8c08b0e",
+          "md5": "45811434d7452aba8dc864fb9701278c"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 11,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "org.teavm",
+          "module": "teavm-metaprogramming-api",
+          "version": {
+            "requires": "0.9.2"
+          }
+        },
+        {
+          "group": "org.teavm",
+          "module": "teavm-relocated-libs-commons-io",
+          "version": {
+            "requires": "0.9.2"
+          }
+        },
+        {
+          "group": "org.teavm",
+          "module": "teavm-relocated-libs-asm",
+          "version": {
+            "requires": "0.9.2"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "teavm-metaprogramming-impl-0.9.2.jar",
+          "url": "teavm-metaprogramming-impl-0.9.2.jar",
+          "size": 110205,
+          "sha512": "d8633ba4923c3020f72d876008715bf05518ceebab8f05b149046a7122647c2767d0c3acc722460d27dff7a9cba993df8efb1c5073b0f6eee52d167fdf5eca63",
+          "sha256": "fc7906325d5e36df7abea8d06d80621347b2bb50b4938d4e3e24cbe891d3db50",
+          "sha1": "8554733693688b17e0f5978784114b05c8c08b0e",
+          "md5": "45811434d7452aba8dc864fb9701278c"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "teavm-metaprogramming-impl-0.9.2-sources.jar",
+          "url": "teavm-metaprogramming-impl-0.9.2-sources.jar",
+          "size": 52539,
+          "sha512": "71ed8f44c9874b7d6092744fb246cb7d51045f9b5f3098e66d140d0721952309843c973d067a7b5f7e4543e1665b823f15d0030c0328514944541d04d20c7138",
+          "sha256": "fb8003b8a8b07a80f2384bfdf9e83f7bc1eb5b7683f801a0c974932f8a9294e9",
+          "sha1": "9addb862b01afd1b3eda03a18ce7e3de317e39db",
+          "md5": "5db459645ea5b8b52d73af59413c8bf2"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "teavm-metaprogramming-impl-0.9.2-javadoc.jar",
+          "url": "teavm-metaprogramming-impl-0.9.2-javadoc.jar",
+          "size": 164799,
+          "sha512": "e1db4389defb566cd15eff5e9b378a70cde3cdf4d9a53708c26c33d3c894b5b4e9ba2e01840ef1563a1d5b3824b3eca357a44abab800d087f362c13b3f72d152",
+          "sha256": "f27acba24262b00f377372eb40c4bc7152db2e05221e0aeba36dd3570231eb92",
+          "sha1": "6a992e3ea51aeec00ec83b6be5f7e42c2cd25731",
+          "md5": "eb0a1386e3c25c8c82d9d5a892b475a9"
+        }
+      ]
+    }
+  ]
+}

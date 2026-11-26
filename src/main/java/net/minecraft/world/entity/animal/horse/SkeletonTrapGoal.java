@@ -1,0 +1,111 @@
+package net.minecraft.world.entity.animal.horse;
+
+import javax.annotation.Nullable;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.DifficultyInstance;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LightningBolt;
+import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.entity.monster.Skeleton;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+
+public class SkeletonTrapGoal extends Goal {
+   private final SkeletonHorse horse;
+
+   public SkeletonTrapGoal(SkeletonHorse param0) {
+      this.horse = param0;
+   }
+
+   @Override
+   public boolean canUse() {
+      return this.horse.level.hasNearbyAlivePlayer(this.horse.getX(), this.horse.getY(), this.horse.getZ(), 10.0);
+   }
+
+   @Override
+   public void tick() {
+      ServerLevel var1 = (ServerLevel)this.horse.level;
+      DifficultyInstance var2 = var1.getCurrentDifficultyAt(this.horse.blockPosition());
+      this.horse.setTrap(false);
+      this.horse.setTamed(true);
+      this.horse.setAge(0);
+      LightningBolt var3 = EntityType.LIGHTNING_BOLT.create(var1);
+      if (var3 != null) {
+         var3.moveTo(this.horse.getX(), this.horse.getY(), this.horse.getZ());
+         var3.setVisualOnly(true);
+         var1.addFreshEntity(var3);
+         Skeleton var4 = this.createSkeleton(var2, this.horse);
+         if (var4 != null) {
+            var4.startRiding(this.horse);
+            var1.addFreshEntityWithPassengers(var4);
+
+            for (int var5 = 0; var5 < 3; var5++) {
+               AbstractHorse var6 = this.createHorse(var2);
+               if (var6 != null) {
+                  Skeleton var7 = this.createSkeleton(var2, var6);
+                  if (var7 != null) {
+                     var7.startRiding(var6);
+                     var6.push(this.horse.getRandom().triangle(0.0, 1.1485), 0.0, this.horse.getRandom().triangle(0.0, 1.1485));
+                     var1.addFreshEntityWithPassengers(var6);
+                  }
+               }
+            }
+         }
+      }
+   }
+
+   @Nullable
+   private AbstractHorse createHorse(DifficultyInstance param0) {
+      SkeletonHorse var2 = EntityType.SKELETON_HORSE.create(this.horse.level);
+      if (var2 != null) {
+         var2.finalizeSpawn((ServerLevel)this.horse.level, param0, MobSpawnType.TRIGGERED, null, null);
+         var2.setPos(this.horse.getX(), this.horse.getY(), this.horse.getZ());
+         var2.invulnerableTime = 60;
+         var2.setPersistenceRequired();
+         var2.setTamed(true);
+         var2.setAge(0);
+      }
+
+      return var2;
+   }
+
+   @Nullable
+   private Skeleton createSkeleton(DifficultyInstance param0, AbstractHorse param1) {
+      Skeleton var3 = EntityType.SKELETON.create(param1.level);
+      if (var3 != null) {
+         var3.finalizeSpawn((ServerLevel)param1.level, param0, MobSpawnType.TRIGGERED, null, null);
+         var3.setPos(param1.getX(), param1.getY(), param1.getZ());
+         var3.invulnerableTime = 60;
+         var3.setPersistenceRequired();
+         if (var3.getItemBySlot(EquipmentSlot.HEAD).isEmpty()) {
+            var3.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.IRON_HELMET));
+         }
+
+         var3.setItemSlot(
+            EquipmentSlot.MAINHAND,
+            EnchantmentHelper.enchantItem(
+               var3.getRandom(), this.disenchant(var3.getMainHandItem()), (int)(5.0F + param0.getSpecialMultiplier() * var3.getRandom().nextInt(18)), false
+            )
+         );
+         var3.setItemSlot(
+            EquipmentSlot.HEAD,
+            EnchantmentHelper.enchantItem(
+               var3.getRandom(),
+               this.disenchant(var3.getItemBySlot(EquipmentSlot.HEAD)),
+               (int)(5.0F + param0.getSpecialMultiplier() * var3.getRandom().nextInt(18)),
+               false
+            )
+         );
+      }
+
+      return var3;
+   }
+
+   private ItemStack disenchant(ItemStack param0) {
+      param0.removeTagKey("Enchantments");
+      return param0;
+   }
+}

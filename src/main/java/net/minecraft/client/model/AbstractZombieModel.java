@@ -1,0 +1,17 @@
+package net.minecraft.client.model;
+
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.world.entity.monster.Monster;
+
+public abstract class AbstractZombieModel<T extends Monster> extends HumanoidModel<T> {
+   protected AbstractZombieModel(ModelPart param0) {
+      super(param0);
+   }
+
+   public void setupAnim(T param0, float param1, float param2, float param3, float param4, float param5) {
+      super.setupAnim(param0, param1, param2, param3, param4, param5);
+      AnimationUtils.animateZombieArms(this.leftArm, this.rightArm, this.isAggressive(param0), this.attackTime, param3);
+   }
+
+   public abstract boolean isAggressive(T var1);
+}

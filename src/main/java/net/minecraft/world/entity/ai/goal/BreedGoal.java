@@ -1,0 +1,83 @@
+package net.minecraft.world.entity.ai.goal;
+
+import java.util.EnumSet;
+import java.util.List;
+import javax.annotation.Nullable;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.ai.targeting.TargetingConditions;
+import net.minecraft.world.entity.animal.Animal;
+import net.minecraft.world.level.Level;
+
+public class BreedGoal extends Goal {
+   private static final TargetingConditions PARTNER_TARGETING = TargetingConditions.forNonCombat().range(8.0).ignoreLineOfSight();
+   protected final Animal animal;
+   private final Class<? extends Animal> partnerClass;
+   protected final Level level;
+   @Nullable
+   protected Animal partner;
+   private int loveTime;
+   private final double speedModifier;
+
+   public BreedGoal(Animal param0, double param1) {
+      this(param0, param1, (Class<? extends Animal>)param0.getClass());
+   }
+
+   public BreedGoal(Animal param0, double param1, Class<? extends Animal> param3) {
+      this.animal = param0;
+      this.level = param0.level;
+      this.partnerClass = param3;
+      this.speedModifier = param1;
+      this.setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.LOOK));
+   }
+
+   @Override
+   public boolean canUse() {
+      if (!this.animal.isInLove()) {
+         return false;
+      }
+
+      this.partner = this.getFreePartner();
+      return this.partner != null;
+   }
+
+   @Override
+   public boolean canContinueToUse() {
+      return this.partner.isAlive() && this.partner.isInLove() && this.loveTime < 60;
+   }
+
+   @Override
+   public void stop() {
+      this.partner = null;
+      this.loveTime = 0;
+   }
+
+   @Override
+   public void tick() {
+      this.animal.getLookControl().setLookAt(this.partner, 10.0F, this.animal.getMaxHeadXRot());
+      this.animal.getNavigation().moveTo(this.partner, this.speedModifier);
+      this.loveTime++;
+      if (this.loveTime >= this.adjustedTickDelay(60) && this.animal.distanceToSqr(this.partner) < 9.0) {
+         this.breed();
+      }
+   }
+
+   @Nullable
+   private Animal getFreePartner() {
+      List<? extends Animal> var1 = this.level.getNearbyEntities(this.partnerClass, PARTNER_TARGETING, this.animal, this.animal.getBoundingBox().inflate(8.0));
+      double var2 = Double.MAX_VALUE;
+      Animal var4 = null;
+
+      for (Animal var6 : var1) {
+         if (this.animal.canMate(var6) && this.animal.distanceToSqr(var6) < var2) {
+            var4 = var6;
+            var2 = this.animal.distanceToSqr(var6);
+         }
+      }
+
+      return var4;
+   }
+
+   protected void breed() {
+      this.animal.spawnChildFromBreeding((ServerLevel)this.level, this.partner);
+   }
+}

@@ -1,0 +1,52 @@
+package net.minecraft.advancements.critereon;
+
+import com.google.gson.JsonObject;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
+
+public class EnchantedItemTrigger extends SimpleCriterionTrigger<EnchantedItemTrigger.TriggerInstance> {
+   static final ResourceLocation ID = new ResourceLocation("enchanted_item");
+
+   @Override
+   public ResourceLocation getId() {
+      return ID;
+   }
+
+   public EnchantedItemTrigger.TriggerInstance createInstance(JsonObject param0, EntityPredicate.Composite param1, DeserializationContext param2) {
+      ItemPredicate var4 = ItemPredicate.fromJson(param0.get("item"));
+      MinMaxBounds.Ints var5 = MinMaxBounds.Ints.fromJson(param0.get("levels"));
+      return new EnchantedItemTrigger.TriggerInstance(param1, var4, var5);
+   }
+
+   public void trigger(ServerPlayer param0, ItemStack param1, int param2) {
+      this.trigger(param0, l_param2 -> l_param2.matches(param1, param2));
+   }
+
+   public static class TriggerInstance extends AbstractCriterionTriggerInstance {
+      private final ItemPredicate item;
+      private final MinMaxBounds.Ints levels;
+
+      public TriggerInstance(EntityPredicate.Composite param0, ItemPredicate param1, MinMaxBounds.Ints param2) {
+         super(EnchantedItemTrigger.ID, param0);
+         this.item = param1;
+         this.levels = param2;
+      }
+
+      public static EnchantedItemTrigger.TriggerInstance enchantedItem() {
+         return new EnchantedItemTrigger.TriggerInstance(EntityPredicate.Composite.ANY, ItemPredicate.ANY, MinMaxBounds.Ints.ANY);
+      }
+
+      public boolean matches(ItemStack param0, int param1) {
+         return !this.item.matches(param0) ? false : this.levels.matches(param1);
+      }
+
+      @Override
+      public JsonObject serializeToJson(SerializationContext param0) {
+         JsonObject var2 = super.serializeToJson(param0);
+         var2.add("item", this.item.serializeToJson());
+         var2.add("levels", this.levels.serializeToJson());
+         return var2;
+      }
+   }
+}

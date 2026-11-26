@@ -1,0 +1,65 @@
+package net.minecraft.world.level.block.entity;
+
+import com.google.common.collect.Lists;
+import com.mojang.datafixers.util.Pair;
+import java.util.List;
+import javax.annotation.Nullable;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.DyeColor;
+
+public class BannerPattern {
+   final String hashname;
+
+   public BannerPattern(String param0) {
+      this.hashname = param0;
+   }
+
+   public static ResourceLocation location(ResourceKey<BannerPattern> param0, boolean param1) {
+      String var2 = param1 ? "banner" : "shield";
+      return param0.location().withPrefix("entity/" + var2 + "/");
+   }
+
+   public String getHashname() {
+      return this.hashname;
+   }
+
+   @Nullable
+   public static Holder<BannerPattern> byHash(String param0) {
+      return BuiltInRegistries.BANNER_PATTERN.holders().filter(l_param1 -> l_param1.value().hashname.equals(param0)).findAny().orElse(null);
+   }
+
+   public static class Builder {
+      private final List<Pair<Holder<BannerPattern>, DyeColor>> patterns = Lists.newArrayList();
+
+      public BannerPattern.Builder addPattern(ResourceKey<BannerPattern> param0, DyeColor param1) {
+         return this.addPattern(BuiltInRegistries.BANNER_PATTERN.getHolderOrThrow(param0), param1);
+      }
+
+      public BannerPattern.Builder addPattern(Holder<BannerPattern> param0, DyeColor param1) {
+         return this.addPattern(Pair.of(param0, param1));
+      }
+
+      public BannerPattern.Builder addPattern(Pair<Holder<BannerPattern>, DyeColor> param0) {
+         this.patterns.add(param0);
+         return this;
+      }
+
+      public ListTag toListTag() {
+         ListTag var1 = new ListTag();
+
+         for (Pair<Holder<BannerPattern>, DyeColor> var3 : this.patterns) {
+            CompoundTag var4 = new CompoundTag();
+            var4.putString("Pattern", var3.getFirst().value().hashname);
+            var4.putInt("Color", var3.getSecond().getId());
+            var1.add(var4);
+         }
+
+         return var1;
+      }
+   }
+}

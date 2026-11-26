@@ -1,0 +1,388 @@
+package com.mojang.realmsclient.gui.screens;
+
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.logging.LogUtils;
+import com.mojang.realmsclient.client.RealmsClient;
+import com.mojang.realmsclient.dto.Ops;
+import com.mojang.realmsclient.dto.PlayerInfo;
+import com.mojang.realmsclient.dto.RealmsServer;
+import com.mojang.realmsclient.exception.RealmsServiceException;
+import com.mojang.realmsclient.util.RealmsUtil;
+import javax.annotation.Nullable;
+import net.minecraft.client.gui.GuiComponent;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.ObjectSelectionList;
+import net.minecraft.network.chat.CommonComponents;
+import net.minecraft.network.chat.Component;
+import net.minecraft.realms.RealmsObjectSelectionList;
+import net.minecraft.realms.RealmsScreen;
+import net.minecraft.resources.ResourceLocation;
+import org.slf4j.Logger;
+
+public class RealmsPlayerScreen extends RealmsScreen {
+   private static final Logger LOGGER = LogUtils.getLogger();
+   private static final ResourceLocation OP_ICON_LOCATION = new ResourceLocation("realms", "textures/gui/realms/op_icon.png");
+   private static final ResourceLocation USER_ICON_LOCATION = new ResourceLocation("realms", "textures/gui/realms/user_icon.png");
+   private static final ResourceLocation CROSS_ICON_LOCATION = new ResourceLocation("realms", "textures/gui/realms/cross_player_icon.png");
+   private static final ResourceLocation OPTIONS_BACKGROUND = new ResourceLocation("minecraft", "textures/gui/options_background.png");
+   private static final Component NORMAL_USER_TOOLTIP = Component.translatable("mco.configure.world.invites.normal.tooltip");
+   private static final Component OP_TOOLTIP = Component.translatable("mco.configure.world.invites.ops.tooltip");
+   private static final Component REMOVE_ENTRY_TOOLTIP = Component.translatable("mco.configure.world.invites.remove.tooltip");
+   private static final Component INVITED_LABEL = Component.translatable("mco.configure.world.invited");
+   @Nullable
+   private Component toolTip;
+   private final RealmsConfigureWorldScreen lastScreen;
+   final RealmsServer serverData;
+   private RealmsPlayerScreen.InvitedObjectSelectionList invitedObjectSelectionList;
+   int column1X;
+   int columnWidth;
+   private int column2X;
+   private Button removeButton;
+   private Button opdeopButton;
+   private int selectedInvitedIndex = -1;
+   private String selectedInvited;
+   int player = -1;
+   private boolean stateChanged;
+   RealmsPlayerScreen.UserAction hoveredUserAction = RealmsPlayerScreen.UserAction.NONE;
+
+   public RealmsPlayerScreen(RealmsConfigureWorldScreen param0, RealmsServer param1) {
+      super(Component.translatable("mco.configure.world.players.title"));
+      this.lastScreen = param0;
+      this.serverData = param1;
+   }
+
+   @Override
+   public void init() {
+      this.column1X = this.width / 2 - 160;
+      this.columnWidth = 150;
+      this.column2X = this.width / 2 + 12;
+      this.invitedObjectSelectionList = new RealmsPlayerScreen.InvitedObjectSelectionList();
+      this.invitedObjectSelectionList.setLeftPos(this.column1X);
+      this.addWidget(this.invitedObjectSelectionList);
+
+      for (PlayerInfo var2 : this.serverData.players) {
+         this.invitedObjectSelectionList.addEntry(var2);
+      }
+
+      this.addRenderableWidget(
+         Button.builder(
+               Component.translatable("mco.configure.world.buttons.invite"),
+               l_param0 -> this.minecraft.setScreen(new RealmsInviteScreen(this.lastScreen, this, this.serverData))
+            )
+            .bounds(this.column2X, row(1), this.columnWidth + 10, 20)
+            .build()
+      );
+      this.removeButton = this.addRenderableWidget(
+         Button.builder(Component.translatable("mco.configure.world.invites.remove.tooltip"), l_param0 -> this.uninvite(this.player))
+            .bounds(this.column2X, row(7), this.columnWidth + 10, 20)
+            .build()
+      );
+      this.opdeopButton = this.addRenderableWidget(Button.builder(Component.translatable("mco.configure.world.invites.ops.tooltip"), l_param0 -> {
+         if (this.serverData.players.get(this.player).isOperator()) {
+            this.deop(this.player);
+         } else {
+            this.op(this.player);
+         }
+      }).bounds(this.column2X, row(9), this.columnWidth + 10, 20).build());
+      this.addRenderableWidget(
+         Button.builder(CommonComponents.GUI_BACK, l_param0 -> this.backButtonClicked())
+            .bounds(this.column2X + this.columnWidth / 2 + 2, row(12), this.columnWidth / 2 + 10 - 2, 20)
+            .build()
+      );
+      this.updateButtonStates();
+   }
+
+   void updateButtonStates() {
+      this.removeButton.visible = this.shouldRemoveAndOpdeopButtonBeVisible(this.player);
+      this.opdeopButton.visible = this.shouldRemoveAndOpdeopButtonBeVisible(this.player);
+   }
+
+   private boolean shouldRemoveAndOpdeopButtonBeVisible(int param0) {
+      return param0 != -1;
+   }
+
+   @Override
+   public boolean keyPressed(int param0, int param1, int param2) {
+      if (param0 == 256) {
+         this.backButtonClicked();
+         return true;
+      } else {
+         return super.keyPressed(param0, param1, param2);
+      }
+   }
+
+   private void backButtonClicked() {
+      if (this.stateChanged) {
+         this.minecraft.setScreen(this.lastScreen.getNewScreen());
+      } else {
+         this.minecraft.setScreen(this.lastScreen);
+      }
+   }
+
+   void op(int param0) {
+      this.updateButtonStates();
+      RealmsClient var2 = RealmsClient.create();
+      String var3 = this.serverData.players.get(param0).getUuid();
+
+      try {
+         this.updateOps(var2.op(this.serverData.id, var3));
+      } catch (RealmsServiceException var4) {
+         LOGGER.error("Couldn't op the user");
+      }
+   }
+
+   void deop(int param0) {
+      this.updateButtonStates();
+      RealmsClient var2 = RealmsClient.create();
+      String var3 = this.serverData.players.get(param0).getUuid();
+
+      try {
+         this.updateOps(var2.deop(this.serverData.id, var3));
+      } catch (RealmsServiceException var4) {
+         LOGGER.error("Couldn't deop the user");
+      }
+   }
+
+   private void updateOps(Ops param0) {
+      for (PlayerInfo var3 : this.serverData.players) {
+         var3.setOperator(param0.ops.contains(var3.getName()));
+      }
+   }
+
+   void uninvite(int param0) {
+      this.updateButtonStates();
+      if (param0 >= 0 && param0 < this.serverData.players.size()) {
+         PlayerInfo var2 = this.serverData.players.get(param0);
+         this.selectedInvited = var2.getUuid();
+         this.selectedInvitedIndex = param0;
+         RealmsConfirmScreen var3 = new RealmsConfirmScreen(l_param0 -> {
+            if (l_param0) {
+               RealmsClient l_var2 = RealmsClient.create();
+
+               try {
+                  l_var2.uninvite(this.serverData.id, this.selectedInvited);
+               } catch (RealmsServiceException l_var3) {
+                  LOGGER.error("Couldn't uninvite user");
+               }
+
+               this.deleteFromInvitedList(this.selectedInvitedIndex);
+               this.player = -1;
+               this.updateButtonStates();
+            }
+
+            this.stateChanged = true;
+            this.minecraft.setScreen(this);
+         }, Component.literal("Question"), Component.translatable("mco.configure.world.uninvite.question").append(" '").append(var2.getName()).append("' ?"));
+         this.minecraft.setScreen(var3);
+      }
+   }
+
+   private void deleteFromInvitedList(int param0) {
+      this.serverData.players.remove(param0);
+   }
+
+   @Override
+   public void render(PoseStack param0, int param1, int param2, float param3) {
+      this.toolTip = null;
+      this.hoveredUserAction = RealmsPlayerScreen.UserAction.NONE;
+      this.renderBackground(param0);
+      if (this.invitedObjectSelectionList != null) {
+         this.invitedObjectSelectionList.render(param0, param1, param2, param3);
+      }
+
+      drawCenteredString(param0, this.font, this.title, this.width / 2, 17, 16777215);
+      int var5 = row(12) + 20;
+      RenderSystem.setShaderTexture(0, OPTIONS_BACKGROUND);
+      RenderSystem.setShaderColor(0.25F, 0.25F, 0.25F, 1.0F);
+      blit(param0, 0, var5, 0.0F, 0.0F, this.width, this.height - var5, 32, 32);
+      RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+      if (this.serverData != null && this.serverData.players != null) {
+         this.font
+            .draw(
+               param0,
+               Component.empty().append(INVITED_LABEL).append(" (").append(Integer.toString(this.serverData.players.size())).append(")"),
+               this.column1X,
+               row(0),
+               10526880
+            );
+      } else {
+         this.font.draw(param0, INVITED_LABEL, this.column1X, row(0), 10526880);
+      }
+
+      super.render(param0, param1, param2, param3);
+      if (this.serverData != null) {
+         this.renderMousehoverTooltip(param0, this.toolTip, param1, param2);
+      }
+   }
+
+   protected void renderMousehoverTooltip(PoseStack param0, @Nullable Component param1, int param2, int param3) {
+      if (param1 != null) {
+         int var5 = param2 + 12;
+         int var6 = param3 - 12;
+         int var7 = this.font.width(param1);
+         fillGradient(param0, var5 - 3, var6 - 3, var5 + var7 + 3, var6 + 8 + 3, -1073741824, -1073741824);
+         this.font.drawShadow(param0, param1, var5, var6, 16777215);
+      }
+   }
+
+   void drawRemoveIcon(PoseStack param0, int param1, int param2, int param3, int param4) {
+      boolean var6 = param3 >= param1 && param3 <= param1 + 9 && param4 >= param2 && param4 <= param2 + 9 && param4 < row(12) + 20 && param4 > row(1);
+      RenderSystem.setShaderTexture(0, CROSS_ICON_LOCATION);
+      float var7 = var6 ? 7.0F : 0.0F;
+      GuiComponent.blit(param0, param1, param2, 0.0F, var7, 8, 7, 8, 14);
+      if (var6) {
+         this.toolTip = REMOVE_ENTRY_TOOLTIP;
+         this.hoveredUserAction = RealmsPlayerScreen.UserAction.REMOVE;
+      }
+   }
+
+   void drawOpped(PoseStack param0, int param1, int param2, int param3, int param4) {
+      boolean var6 = param3 >= param1 && param3 <= param1 + 9 && param4 >= param2 && param4 <= param2 + 9 && param4 < row(12) + 20 && param4 > row(1);
+      RenderSystem.setShaderTexture(0, OP_ICON_LOCATION);
+      float var7 = var6 ? 8.0F : 0.0F;
+      GuiComponent.blit(param0, param1, param2, 0.0F, var7, 8, 8, 8, 16);
+      if (var6) {
+         this.toolTip = OP_TOOLTIP;
+         this.hoveredUserAction = RealmsPlayerScreen.UserAction.TOGGLE_OP;
+      }
+   }
+
+   void drawNormal(PoseStack param0, int param1, int param2, int param3, int param4) {
+      boolean var6 = param3 >= param1 && param3 <= param1 + 9 && param4 >= param2 && param4 <= param2 + 9 && param4 < row(12) + 20 && param4 > row(1);
+      RenderSystem.setShaderTexture(0, USER_ICON_LOCATION);
+      float var7 = var6 ? 8.0F : 0.0F;
+      GuiComponent.blit(param0, param1, param2, 0.0F, var7, 8, 8, 8, 16);
+      if (var6) {
+         this.toolTip = NORMAL_USER_TOOLTIP;
+         this.hoveredUserAction = RealmsPlayerScreen.UserAction.TOGGLE_OP;
+      }
+   }
+
+   class Entry extends ObjectSelectionList.Entry<RealmsPlayerScreen.Entry> {
+      private final PlayerInfo playerInfo;
+
+      public Entry(PlayerInfo param1) {
+         this.playerInfo = param1;
+      }
+
+      @Override
+      public void render(PoseStack param0, int param1, int param2, int param3, int param4, int param5, int param6, int param7, boolean param8, float param9) {
+         this.renderInvitedItem(param0, this.playerInfo, param3, param2, param6, param7);
+      }
+
+      private void renderInvitedItem(PoseStack param0, PlayerInfo param1, int param2, int param3, int param4, int param5) {
+         int var7;
+         if (!param1.getAccepted()) {
+            var7 = 10526880;
+         } else if (param1.getOnline()) {
+            var7 = 8388479;
+         } else {
+            var7 = 16777215;
+         }
+
+         RealmsPlayerScreen.this.font.draw(param0, param1.getName(), RealmsPlayerScreen.this.column1X + 3 + 12, param3 + 1, var7);
+         if (param1.isOperator()) {
+            RealmsPlayerScreen.this.drawOpped(param0, RealmsPlayerScreen.this.column1X + RealmsPlayerScreen.this.columnWidth - 10, param3 + 1, param4, param5);
+         } else {
+            RealmsPlayerScreen.this.drawNormal(param0, RealmsPlayerScreen.this.column1X + RealmsPlayerScreen.this.columnWidth - 10, param3 + 1, param4, param5);
+         }
+
+         RealmsPlayerScreen.this.drawRemoveIcon(param0, RealmsPlayerScreen.this.column1X + RealmsPlayerScreen.this.columnWidth - 22, param3 + 2, param4, param5);
+         RealmsUtil.renderPlayerFace(param0, RealmsPlayerScreen.this.column1X + 2 + 2, param3 + 1, 8, param1.getUuid());
+      }
+
+      @Override
+      public Component getNarration() {
+         return Component.translatable("narrator.select", this.playerInfo.getName());
+      }
+   }
+
+   class InvitedObjectSelectionList extends RealmsObjectSelectionList<RealmsPlayerScreen.Entry> {
+      public InvitedObjectSelectionList() {
+         super(RealmsPlayerScreen.this.columnWidth + 10, RealmsPlayerScreen.row(12) + 20, RealmsPlayerScreen.row(1), RealmsPlayerScreen.row(12) + 20, 13);
+      }
+
+      public void addEntry(PlayerInfo param0) {
+         this.addEntry(RealmsPlayerScreen.this.new Entry(param0));
+      }
+
+      @Override
+      public int getRowWidth() {
+         return (int)(this.width * 1.0);
+      }
+
+      @Override
+      public boolean mouseClicked(double param0, double param2, int param4) {
+         if (param4 == 0 && param0 < this.getScrollbarPosition() && param2 >= this.y0 && param2 <= this.y1) {
+            int var6 = RealmsPlayerScreen.this.column1X;
+            int var7 = RealmsPlayerScreen.this.column1X + RealmsPlayerScreen.this.columnWidth;
+            int var8 = (int)Math.floor(param2 - this.y0) - this.headerHeight + (int)this.getScrollAmount() - 4;
+            int var9 = var8 / this.itemHeight;
+            if (param0 >= var6 && param0 <= var7 && var9 >= 0 && var8 >= 0 && var9 < this.getItemCount()) {
+               this.selectItem(var9);
+               this.itemClicked(var8, var9, param0, param2, this.width, param4);
+            }
+
+            return true;
+         } else {
+            return super.mouseClicked(param0, param2, param4);
+         }
+      }
+
+      @Override
+      public void itemClicked(int param0, int param1, double param2, double param4, int param6, int param7) {
+         if (param1 >= 0
+            && param1 <= RealmsPlayerScreen.this.serverData.players.size()
+            && RealmsPlayerScreen.this.hoveredUserAction != RealmsPlayerScreen.UserAction.NONE) {
+            if (RealmsPlayerScreen.this.hoveredUserAction == RealmsPlayerScreen.UserAction.TOGGLE_OP) {
+               if (RealmsPlayerScreen.this.serverData.players.get(param1).isOperator()) {
+                  RealmsPlayerScreen.this.deop(param1);
+               } else {
+                  RealmsPlayerScreen.this.op(param1);
+               }
+            } else if (RealmsPlayerScreen.this.hoveredUserAction == RealmsPlayerScreen.UserAction.REMOVE) {
+               RealmsPlayerScreen.this.uninvite(param1);
+            }
+         }
+      }
+
+      @Override
+      public void selectItem(int param0) {
+         super.selectItem(param0);
+         this.selectInviteListItem(param0);
+      }
+
+      public void selectInviteListItem(int param0) {
+         RealmsPlayerScreen.this.player = param0;
+         RealmsPlayerScreen.this.updateButtonStates();
+      }
+
+      public void setSelected(@Nullable RealmsPlayerScreen.Entry param0) {
+         super.setSelected(param0);
+         RealmsPlayerScreen.this.player = this.children().indexOf(param0);
+         RealmsPlayerScreen.this.updateButtonStates();
+      }
+
+      @Override
+      public void renderBackground(PoseStack param0) {
+         RealmsPlayerScreen.this.renderBackground(param0);
+      }
+
+      @Override
+      public int getScrollbarPosition() {
+         return RealmsPlayerScreen.this.column1X + this.width - 5;
+      }
+
+      @Override
+      public int getMaxPosition() {
+         return this.getItemCount() * 13;
+      }
+   }
+
+   enum UserAction {
+      TOGGLE_OP,
+      REMOVE,
+      NONE;
+   }
+}

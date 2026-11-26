@@ -1,0 +1,118 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "org.teavm",
+    "module": "teavm-relocated-libs-asm-analysis",
+    "version": "0.9.2",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.4"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 11,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "org.ow2.asm",
+          "module": "asm-analysis",
+          "version": {
+            "requires": "9.5"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "teavm-relocated-libs-asm-analysis-0.9.2.jar",
+          "url": "teavm-relocated-libs-asm-analysis-0.9.2.jar",
+          "size": 33425,
+          "sha512": "a005afafaf7f82854eed116ce8db63f7871c8c251207dd00161d58d42bdae1de65cc9c1882cbca893e8c0a4358e0069768264298bb2cf10f9ac4f40a15d8cc04",
+          "sha256": "cc80d86d7a893f395d9e9c1a596a6728d768a220247fb49ff1fdcd06c6a073b0",
+          "sha1": "32aeeac68547d85f2cfb72af3dcf2b1fc4b831c0",
+          "md5": "f920e2f3af8fa1df625a9610683e2079"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 11,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "org.teavm",
+          "module": "teavm-relocated-libs-asm-tree",
+          "version": {
+            "requires": "0.9.2"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "teavm-relocated-libs-asm-analysis-0.9.2.jar",
+          "url": "teavm-relocated-libs-asm-analysis-0.9.2.jar",
+          "size": 33425,
+          "sha512": "a005afafaf7f82854eed116ce8db63f7871c8c251207dd00161d58d42bdae1de65cc9c1882cbca893e8c0a4358e0069768264298bb2cf10f9ac4f40a15d8cc04",
+          "sha256": "cc80d86d7a893f395d9e9c1a596a6728d768a220247fb49ff1fdcd06c6a073b0",
+          "sha1": "32aeeac68547d85f2cfb72af3dcf2b1fc4b831c0",
+          "md5": "f920e2f3af8fa1df625a9610683e2079"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "teavm-relocated-libs-asm-analysis-0.9.2-sources.jar",
+          "url": "teavm-relocated-libs-asm-analysis-0.9.2-sources.jar",
+          "size": 261,
+          "sha512": "1487e5a20c9e4d74f298e07c42e96a61be11b7a768c3fbc199ee138cd68e1fc2267d1cfe3f11f288acc05df755315344d052cc5f6f751f126ab4fe1caa5125ea",
+          "sha256": "c6deada2fac53b8ea6523dbda77597b128006674616f140f04df23264c6d1aa3",
+          "sha1": "2ad14aed781c4a73ed4dbb421966d408a0a06686",
+          "md5": "f43436d6bec321290f6af228ad602604"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "teavm-relocated-libs-asm-analysis-0.9.2-javadoc.jar",
+          "url": "teavm-relocated-libs-asm-analysis-0.9.2-javadoc.jar",
+          "size": 261,
+          "sha512": "1487e5a20c9e4d74f298e07c42e96a61be11b7a768c3fbc199ee138cd68e1fc2267d1cfe3f11f288acc05df755315344d052cc5f6f751f126ab4fe1caa5125ea",
+          "sha256": "c6deada2fac53b8ea6523dbda77597b128006674616f140f04df23264c6d1aa3",
+          "sha1": "2ad14aed781c4a73ed4dbb421966d408a0a06686",
+          "md5": "f43436d6bec321290f6af228ad602604"
+        }
+      ]
+    }
+  ]
+}

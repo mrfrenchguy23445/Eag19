@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<!--
+  Dev entry point for the WASM-GC TeaVM build of EaglercraftX 1.19.4.
+
+  This page implements the loader-context contract that eagruntime_entrypoint.js
+  expects from window.__eaglercraftXLoaderContext (the same contract the official
+  loader.wasm implements in src/wasm-gc-teavm-loader/js/library.js) and then loads
+  eagruntime.js, which calls back into runMain(entryPoint).
+
+  The <div> inside <body> must be the ONLY rootElement child (the JS runtime
+  re-parents and re-positions rootElement.lastChild when it starts, and a
+  whitespace text node there is a hard crash - no .style). Served statically
+  from this directory (see scripts/serve-wasm-dev.mjs, port 8097).
+-->
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EaglercraftX 1.19.4 (WASM-GC dev)</title>
+<link rel="icon" href="favicon.png">
+<script>
+// DEV ONLY: capture every console line (and uncaught errors) in memory so the
+// automation harness can dump the whole boot log instead of the browser's
+// bounded console buffer. Read with: window.__logCapture
+"use strict";
+(function() {
+	window.__logCapture = [];
+	const cap = function(level, args) {
+		try {
+			let s = "";
+			for (let i = 0; i < args.length; i++) {
+				let a = args[i];
+				try {
+					if (typeof a === "string") s += (i ? " " : "") + a;
+					else if (a && a.stack) s += (i ? " " : "") + a.stack;
+					else s += (i ? " " : "") + String(a);
+				} catch (e) { s += " <?>"; }
+			}
+			if (window.__logCapture.length < 20000) window.__logCapture.push(level + ": " + s);
+		} catch (e) {}
+	};
+	["log", "info", "warn", "error", "debug"].forEach(function(k) {
+		const orig = console[k];
+		if (typeof orig !== "function") return;
+		console[k] = function() {
+			cap(k, arguments);
+			return orig.apply(console, arguments);
+		};
+	});
+	window.addEventListener("unhandledrejection", function(e) {
+		cap("unhandledrejection", [e.reason && (e.reason.name + ": " + e.reason.message) || String(e.reason)]);
+	});
+	window.addEventListener("error", function(e) {
+		if (e && e.message) cap("window.error", [e.message]);
+	});
+})();
+</script>
+<style>
+html, body { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #101014; }
+#_eaglercraftX_game_root { position: relative; width: 100%; height: 100%; }
+canvas { display: block; }
+</style>
+</head>
+<body><div id="_eaglercraftX_game_root"></div>
+<script>
+// DEV ONLY: force preserveDrawingBuffer on the game's WebGL context so the
+// canvas can be rasterized from automation (pixel sampling for UI verification).
+// This costs a backbuffer copy every frame, so it is OFF by default - add
+// ?keepPixels=1 to the URL to enable it.
+"use strict";
+(function() {
+	if (!/[?&]keepPixels=1/.test(location.search)) return;
+	const orig = HTMLCanvasElement.prototype.getContext;
+	HTMLCanvasElement.prototype.getContext = function(type, attrs) {
+		attrs = Object.assign({}, attrs || {});
+		if (attrs.preserveDrawingBuffer === false) attrs.preserveDrawingBuffer = true;
+		return orig.call(this, type, attrs);
+	};
+})();
+</script>
+<script>
+// DEV ONLY: make the game ignore window focus/visibility so automated runs
+// keep rendering even when the automation browser never really focuses the
+// tab. OFF by default - add ?autofocus=1 to the URL to enable it.
+"use strict";
+(function() {
+	if (!/[?&]autofocus=1/.test(location.search)) return;
+	document.hasFocus = function() { return true; };
+	try {
+		Object.defineProperty(document, "hidden", { get: function() { return false; }, configurable: true });
+		Object.defineProperty(document, "visibilityState", { get: function() { return "visible"; }, configurable: true });
+	} catch (e) {}
+	const stop = function(e) { e.preventDefault(); e.stopPropagation(); };
+	window.addEventListener("blur", stop, true);
+	window.addEventListener("focusout", stop, true);
+	window.addEventListener("visibilitychange", stop, true);
+})();
+</script>
+<script>
+// DEV ONLY: Web debugging spy for the GL path. Records every texImage2D /
+// texSubImage2D (with target texture object, size, offset) and counts draw
+// calls per frame, and exposes helpers for reading texture contents back
+// through a temporary framebuffer. OFF by default - add ?glspy=1.
+"use strict";
+(function() {
+	if (!/[?&]glspy=1/.test(location.search)) return;
+	window.__glSpy = { uploads: [], draws: {de: 0, da: 0, inds: 0}, textures: [] };
+	const proto = WebGL2RenderingContext.prototype;
+	function regTex(gl, wisTex, w, h) {
+		const tex = gl.getParameter(gl.TEXTURE_BINDING_2D);
+		let e = window.__glSpy.textures.find(e => e.tex === tex);
+		if (!e) { e = { tex: tex, w: w, h: h, n: 0, subs: 0, stor: 0 }; window.__glSpy.textures.push(e); }
+		else if (w) { e.w = w; e.h = h; }
+		return e;
+	}
+	const origTI = proto.texImage2D;
+	proto.texImage2D = function(target, level, ifmt, w, h, b, f, ty, src) {
+		const e = regTex(this, w, w, h);
+		e.n++;
+		window.__glSpy.uploads.push({ op: "ti", tex: window.__glSpy.textures.indexOf(e), lvl: level, w: w, h: h });
+		return origTI.apply(this, arguments);
+	};
+	const origTSI = proto.texSubImage2D;
+	proto.texSubImage2D = function(target, level, x, y, w, h, f, ty, src) {
+		const e = regTex(this, w, 0, 0);
+		e.subs++;
+		window.__glSpy.uploads.push({ op: "ts", tex: window.__glSpy.textures.indexOf(e), lvl: level, a: level === 0 && e.w === w && e.h === h ? -1 : level, w: w, h: h, x: x, y: y });
+		return origTSI.apply(this, arguments);
+	};
+	const origST = proto.texStorage2D;
+	proto.texStorage2D = function(target, levels, ifmt, w, h) {
+		const e = regTex(this, w, w, h);
+		e.stor++;
+		return origST.apply(this, arguments);
+	};
+	const origCopy = proto.copyTexSubImage2D;
+	proto.copyTexSubImage2D = function(target, level, xo, yo, x, y, w, h) {
+		const e = regTex(this, w, 0, 0);
+		e.subs++;
+		window.__glSpy.uploads.push({ op: "cp", tex: window.__glSpy.textures.indexOf(e), lvl: level, w: w, h: h, x: xo, y: yo });
+		return origCopy.apply(this, arguments);
+	};
+	const origDE = proto.drawElements;
+	proto.drawElements = function(m, c, ty, o) { window.__glSpy.draws.de++; window.__glSpy.draws.inds += c; return origDE.apply(this, arguments); };
+	const origDA = proto.drawArrays;
+	proto.drawArrays = function(m, f, c) { window.__glSpy.draws.da++; return origDA.apply(this, arguments); };
+	// Read a tracked texture into a canvas (returns [width, height, canvasDataUrl]):
+	// attaches the texture to a throwaway FBO, readPixels, restores GL bindings.
+	window.__glSpy.readTex = function(gl, ti) {
+		const e = window.__glSpy.textures[ti];
+		if (!e || !e.tex) return null;
+		const prevFb = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+		const prevTex = gl.getParameter(gl.TEXTURE_BINDING_2D);
+		const prevUnit = gl.getParameter(gl.ACTIVE_TEXTURE);
+		gl.activeTexture(gl.TEXTURE0);
+		gl.bindTexture(gl.TEXTURE_2D, e.tex);
+		const fb = gl.createFramebuffer();
+		gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+		gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, e.tex, 0);
+		const st = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+		const w = e.w, h = e.h;
+		let px = null;
+		if (st === gl.FRAMEBUFFER_COMPLETE) {
+			px = new Uint8Array(w * h * 4);
+			gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+		}
+		gl.bindFramebuffer(gl.FRAMEBUFFER, prevFb);
+		gl.bindTexture(gl.TEXTURE_2D, prevTex);
+		gl.activeTexture(prevUnit);
+		gl.deleteFramebuffer(fb);
+		if (!px) return null;
+		return { w: w, h: h, px: px };
+	};
+})();
+</script>
+<script>
+"use strict";
+(function src() {
+
+	function loadEPKSync(url) {
+		const xhr = new XMLHttpRequest();
+		xhr.open("GET", url, false);
+		xhr.overrideMimeType("text/plain; charset=x-user-defined");
+		xhr.send(null);
+		if (xhr.status !== 200) {
+			throw new Error("Failed to fetch " + url + " (status " + xhr.status + ")");
+		}
+		const text = xhr.responseText;
+		const len = text.length;
+		const ret = new Uint8Array(len);
+		for (let i = 0; i < len; ++i) {
+			ret[i] = text.charCodeAt(i) & 0xFF;
+		}
+		return ret;
+	}
+
+	// Mounted at "" so every EPK entry name becomes its storage key; the JVM side
+	// strips the leading "/" from requested resource paths (PlatformAssets), so
+	// path prefixes must not be prepended here (EPKLoader.loadEPK(buf, path, ...)).
+	const epkFiles = [
+		{ "name": "assets.epk", "path": "", "data": loadEPKSync("assets.epk") },
+		{ "name": "lang.tmp.epk", "path": "", "data": loadEPKSync("lang.tmp.epk") },
+		// vanilla data pack for the SERVER_DATA pack type (worldgen registries:
+		// dimension/world_preset/biome JSONs). Without it, CreateWorldScreen dies
+		// with "Missing key in ResourceKey[... world_preset]: minecraft:normal".
+		// Generated from src/wasm-gc-teavm/resources/minecraft-1.19.4-vanilla-data.zip
+		// by scripts/make-data-epk.mjs.
+		{ "name": "data.epk", "path": "", "data": loadEPKSync("data.epk") },
+		// eagler-only assets (skins, GLSL sources, icudt, audioctx probes, musics).
+		// The stock assets.epk (restored from the 1.14 mirror) ships nothing under
+		// assets/eagler/ - skin textures then fail to load and crash the profile
+		// screen preview. Extracted from the official 1.8.8 wasm offline EPK via
+		// scripts/make-folder-epk.mjs; mounted LAST so eagler entries win dups.
+		{ "name": "eagler.epk", "path": "", "data": loadEPKSync("eagler.epk") }
+	];
+
+	window.eagDevOpts = {
+		// Distinct localStorage namespace so dev progress never touches a real install.
+		"localStorageNamespace": "_eaglercraftX_wasm_dev",
+		"disableAudio": true
+	};
+
+	// Contract: src/wasm-gc-teavm/js/eagruntime_entrypoint.js
+	window.__eaglercraftXLoaderContext = {
+		"getEaglercraftXOpts": function() {
+			return window.eagDevOpts;
+		},
+		"getEagRuntimeJSURL": function() {
+			return "eagruntime.js";
+		},
+		"getClassesWASMURL": function() {
+			return "classes.wasm";
+		},
+		"getClassesDeobfWASMURL": function() {
+			return null; // the deobf wasm module is not produced by a raw generateWasmGC; stack traces stay obfuscated
+		},
+		"getClassesTEADBGURL": function() {
+			return "classes.wasm.teadbg";
+		},
+		"getEPKFiles": function() {
+			return epkFiles;
+		},
+		"getRootElement": function() {
+			return document.getElementById("_eaglercraftX_game_root");
+		},
+		"getMainArgs": function() {
+			return [];
+		},
+		"getImageURL": function(idx) {
+			switch (idx) {
+				case 0: return "splash.png";
+				case 1: return "pressAnyKey.png";
+				case 2: return "crash.png";
+				case 3: return "favicon.png";
+				default: return null;
+			}
+		},
+		"runMain": function(mainFunc) {
+			startSoundGate(mainFunc);
+		}
+	};
+
+	// ---- Boot gate (dev) ----------------------------------------------------
+	// The click is kept as the user-gesture boundary for the WASM runtime. This
+	// build is silent: no sounds.epk, no AudioContext, no keep-alive element.
+	function startSoundGate(mainFunc) {
+		const style = document.createElement("style");
+		style.textContent = [
+			"#eagDevSoundGate{position:fixed;inset:0;background:#000;color:#ddd;",
+			"font:16px/1.4 monospace;display:flex;align-items:center;justify-content:center;",
+			"text-align:center;z-index:999999;user-select:none;cursor:pointer;}",
+			"#eagDevSoundGate h1{font-size:26px;color:#fff;margin:0 0 18px;}",
+			"#eagDevSoundGate .go{font-size:22px;color:#ffff55;margin:10px 0 4px;}",
+			"#eagDevSoundGate .hint{font-size:13px;color:#8b8b8b;margin-top:26px;max-width:520px;}"
+		].join("");
+		document.head.appendChild(style);
+
+		const gate = document.createElement("div");
+		gate.id = "eagDevSoundGate";
+		gate.innerHTML = '<div>' +
+			'<h1>EaglercraftX 1.19.4</h1>' +
+			'<div class="go">Click to enable sounds!</div>' +
+			'<div class="hint">This build is silent. The click is still required to start the client.</div>' +
+			'</div>';
+		document.body.appendChild(gate);
+		gate.addEventListener("click", function() {
+			gate.remove();
+			setTimeout(mainFunc, 10);
+		});
+	}
+})();
+</script><script src="eagruntime.js"></script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+package net.minecraft.network.protocol.game;
+
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.world.entity.player.Abilities;
+
+public class ServerboundPlayerAbilitiesPacket implements Packet<ServerGamePacketListener> {
+   private static final int FLAG_FLYING = 2;
+   private final boolean isFlying;
+
+   public ServerboundPlayerAbilitiesPacket(Abilities param0) {
+      this.isFlying = param0.flying;
+   }
+
+   public ServerboundPlayerAbilitiesPacket(FriendlyByteBuf param0) {
+      byte var2 = param0.readByte();
+      this.isFlying = (var2 & 2) != 0;
+   }
+
+   @Override
+   public void write(FriendlyByteBuf param0) {
+      byte var2 = 0;
+      if (this.isFlying) {
+         var2 = (byte)(var2 | 2);
+      }
+
+      param0.writeByte(var2);
+   }
+
+   public void handle(ServerGamePacketListener param0) {
+      param0.handlePlayerAbilities(this);
+   }
+
+   public boolean isFlying() {
+      return this.isFlying;
+   }
+}

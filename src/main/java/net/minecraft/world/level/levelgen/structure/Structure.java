@@ -1,0 +1,243 @@
+package net.minecraft.world.level.levelgen.structure;
+
+import com.mojang.datafixers.util.Either;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.MapCodec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.mojang.serialization.codecs.RecordCodecBuilder.Instance;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
+import net.minecraft.core.HolderSet;
+import net.minecraft.core.QuartPos;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.RegistryCodecs;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.RegistryFileCodec;
+import net.minecraft.util.RandomSource;
+import net.minecraft.util.StringRepresentable;
+import net.minecraft.world.entity.MobCategory;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.LevelHeightAccessor;
+import net.minecraft.world.level.StructureManager;
+import net.minecraft.world.level.WorldGenLevel;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.BiomeSource;
+import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.chunk.ChunkGenerator;
+import net.minecraft.world.level.levelgen.GenerationStep;
+import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.levelgen.LegacyRandomSource;
+import net.minecraft.world.level.levelgen.RandomState;
+import net.minecraft.world.level.levelgen.WorldgenRandom;
+import net.minecraft.world.level.levelgen.structure.pieces.PiecesContainer;
+import net.minecraft.world.level.levelgen.structure.pieces.StructurePiecesBuilder;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
+
+public abstract class Structure {
+   public static final Codec<Structure> DIRECT_CODEC = BuiltInRegistries.STRUCTURE_TYPE.byNameCodec().dispatch(Structure::type, StructureType::codec);
+   public static final Codec<Holder<Structure>> CODEC = RegistryFileCodec.create(Registries.STRUCTURE, DIRECT_CODEC);
+   protected final Structure.StructureSettings settings;
+
+   public static <S extends Structure> RecordCodecBuilder<S, Structure.StructureSettings> settingsCodec(Instance<S> param0) {
+      return Structure.StructureSettings.CODEC.forGetter(l_param0 -> l_param0.settings);
+   }
+
+   public static <S extends Structure> Codec<S> simpleCodec(Function<Structure.StructureSettings, S> param0) {
+      return RecordCodecBuilder.create(l_param1 -> l_param1.group(settingsCodec(l_param1)).apply(l_param1, param0));
+   }
+
+   protected Structure(Structure.StructureSettings param0) {
+      this.settings = param0;
+   }
+
+   public HolderSet<Biome> biomes() {
+      return this.settings.biomes;
+   }
+
+   public Map<MobCategory, StructureSpawnOverride> spawnOverrides() {
+      return this.settings.spawnOverrides;
+   }
+
+   public GenerationStep.Decoration step() {
+      return this.settings.step;
+   }
+
+   public TerrainAdjustment terrainAdaptation() {
+      return this.settings.terrainAdaptation;
+   }
+
+   public BoundingBox adjustBoundingBox(BoundingBox param0) {
+      return this.terrainAdaptation() != TerrainAdjustment.NONE ? param0.inflatedBy(12) : param0;
+   }
+
+   public StructureStart generate(
+      RegistryAccess param0,
+      ChunkGenerator param1,
+      BiomeSource param2,
+      RandomState param3,
+      StructureTemplateManager param4,
+      long param5,
+      ChunkPos param7,
+      int param8,
+      LevelHeightAccessor param9,
+      Predicate<Holder<Biome>> param10
+   ) {
+      Structure.GenerationContext var12 = new Structure.GenerationContext(param0, param1, param2, param3, param4, param5, param7, param9, param10);
+      Optional<Structure.GenerationStub> var13 = this.findValidGenerationPoint(var12);
+      if (var13.isPresent()) {
+         StructurePiecesBuilder var14 = var13.get().getPiecesBuilder();
+         StructureStart var15 = new StructureStart(this, param7, param8, var14.build());
+         if (var15.isValid()) {
+            return var15;
+         }
+      }
+
+      return StructureStart.INVALID_START;
+   }
+
+   protected static Optional<Structure.GenerationStub> onTopOfChunkCenter(
+      Structure.GenerationContext param0, Heightmap.Types param1, Consumer<StructurePiecesBuilder> param2
+   ) {
+      ChunkPos var3 = param0.chunkPos();
+      int var4 = var3.getMiddleBlockX();
+      int var5 = var3.getMiddleBlockZ();
+      int var6 = param0.chunkGenerator().getFirstOccupiedHeight(var4, var5, param1, param0.heightAccessor(), param0.randomState());
+      return Optional.of(new Structure.GenerationStub(new BlockPos(var4, var6, var5), param2));
+   }
+
+   private static boolean isValidBiome(Structure.GenerationStub param0, Structure.GenerationContext param1) {
+      BlockPos var2 = param0.position();
+      return param1.validBiome
+         .test(
+            param1.chunkGenerator
+               .getBiomeSource()
+               .getNoiseBiome(QuartPos.fromBlock(var2.getX()), QuartPos.fromBlock(var2.getY()), QuartPos.fromBlock(var2.getZ()), param1.randomState.sampler())
+         );
+   }
+
+   public void afterPlace(
+      WorldGenLevel param0, StructureManager param1, ChunkGenerator param2, RandomSource param3, BoundingBox param4, ChunkPos param5, PiecesContainer param6
+   ) {
+   }
+
+   private static int[] getCornerHeights(Structure.GenerationContext param0, int param1, int param2, int param3, int param4) {
+      ChunkGenerator var5 = param0.chunkGenerator();
+      LevelHeightAccessor var6 = param0.heightAccessor();
+      RandomState var7 = param0.randomState();
+      return new int[]{
+         var5.getFirstOccupiedHeight(param1, param3, Heightmap.Types.WORLD_SURFACE_WG, var6, var7),
+         var5.getFirstOccupiedHeight(param1, param3 + param4, Heightmap.Types.WORLD_SURFACE_WG, var6, var7),
+         var5.getFirstOccupiedHeight(param1 + param2, param3, Heightmap.Types.WORLD_SURFACE_WG, var6, var7),
+         var5.getFirstOccupiedHeight(param1 + param2, param3 + param4, Heightmap.Types.WORLD_SURFACE_WG, var6, var7)
+      };
+   }
+
+   protected static int getLowestY(Structure.GenerationContext param0, int param1, int param2) {
+      ChunkPos var3 = param0.chunkPos();
+      int var4 = var3.getMinBlockX();
+      int var5 = var3.getMinBlockZ();
+      return getLowestY(param0, var4, var5, param1, param2);
+   }
+
+   protected static int getLowestY(Structure.GenerationContext param0, int param1, int param2, int param3, int param4) {
+      int[] var5 = getCornerHeights(param0, param1, param3, param2, param4);
+      return Math.min(Math.min(var5[0], var5[1]), Math.min(var5[2], var5[3]));
+   }
+
+   @Deprecated
+   protected BlockPos getLowestYIn5by5BoxOffset7Blocks(Structure.GenerationContext param0, Rotation param1) {
+      int var3 = 5;
+      int var4 = 5;
+      if (param1 == Rotation.CLOCKWISE_90) {
+         var3 = -5;
+      } else if (param1 == Rotation.CLOCKWISE_180) {
+         var3 = -5;
+         var4 = -5;
+      } else if (param1 == Rotation.COUNTERCLOCKWISE_90) {
+         var4 = -5;
+      }
+
+      ChunkPos var5 = param0.chunkPos();
+      int var6 = var5.getBlockX(7);
+      int var7 = var5.getBlockZ(7);
+      return new BlockPos(var6, getLowestY(param0, var6, var7, var3, var4), var7);
+   }
+
+   protected abstract Optional<Structure.GenerationStub> findGenerationPoint(Structure.GenerationContext var1);
+
+   public Optional<Structure.GenerationStub> findValidGenerationPoint(Structure.GenerationContext param0) {
+      return this.findGenerationPoint(param0).filter(l_param1 -> isValidBiome(l_param1, param0));
+   }
+
+   public abstract StructureType<?> type();
+
+   public record GenerationContext(
+      RegistryAccess registryAccess,
+      ChunkGenerator chunkGenerator,
+      BiomeSource biomeSource,
+      RandomState randomState,
+      StructureTemplateManager structureTemplateManager,
+      WorldgenRandom random,
+      long seed,
+      ChunkPos chunkPos,
+      LevelHeightAccessor heightAccessor,
+      Predicate<Holder<Biome>> validBiome
+   ) {
+
+      public GenerationContext(
+         RegistryAccess param0,
+         ChunkGenerator param1,
+         BiomeSource param2,
+         RandomState param3,
+         StructureTemplateManager param4,
+         long param5,
+         ChunkPos param7,
+         LevelHeightAccessor param8,
+         Predicate<Holder<Biome>> param9
+      ) {
+         this(param0, param1, param2, param3, param4, makeRandom(param5, param7), param5, param7, param8, param9);
+      }
+
+      private static WorldgenRandom makeRandom(long param0, ChunkPos param2) {
+         WorldgenRandom var3 = new WorldgenRandom(new LegacyRandomSource(0L));
+         var3.setLargeFeatureSeed(param0, param2.x, param2.z);
+         return var3;
+      }
+   }
+
+   public record GenerationStub(BlockPos position, Either<Consumer<StructurePiecesBuilder>, StructurePiecesBuilder> generator) {
+      public GenerationStub(BlockPos param0, Consumer<StructurePiecesBuilder> param1) {
+         this(param0, Either.left(param1));
+      }
+
+      public StructurePiecesBuilder getPiecesBuilder() {
+         return this.generator.map(l_param0 -> {
+            StructurePiecesBuilder l_var1 = new StructurePiecesBuilder();
+            l_param0.accept(l_var1);
+            return l_var1;
+         }, l_param0 -> (StructurePiecesBuilder)l_param0);
+      }
+   }
+
+   public record StructureSettings(
+      HolderSet<Biome> biomes, Map<MobCategory, StructureSpawnOverride> spawnOverrides, GenerationStep.Decoration step, TerrainAdjustment terrainAdaptation
+   ) {
+      public static final MapCodec<Structure.StructureSettings> CODEC = RecordCodecBuilder.mapCodec(
+         param0 -> param0.group(
+               RegistryCodecs.homogeneousList(Registries.BIOME).fieldOf("biomes").forGetter(Structure.StructureSettings::biomes),
+               Codec.simpleMap(MobCategory.CODEC, StructureSpawnOverride.CODEC, StringRepresentable.keys(MobCategory.values()))
+                  .fieldOf("spawn_overrides")
+                  .forGetter(Structure.StructureSettings::spawnOverrides),
+               GenerationStep.Decoration.CODEC.fieldOf("step").forGetter(Structure.StructureSettings::step),
+               TerrainAdjustment.CODEC.optionalFieldOf("terrain_adaptation", TerrainAdjustment.NONE).forGetter(Structure.StructureSettings::terrainAdaptation)
+            )
+            .apply(param0, Structure.StructureSettings::new)
+      );
+   }
+}

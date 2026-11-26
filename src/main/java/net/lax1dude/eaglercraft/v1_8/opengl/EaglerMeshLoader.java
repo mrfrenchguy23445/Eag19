@@ -1,0 +1,162 @@
+package net.lax1dude.eaglercraft.v1_8.opengl;
+
+import net.lax1dude.eaglercraft.v1_8.EagRuntime;
+import net.lax1dude.eaglercraft.v1_8.internal.buffer.IntBuffer;
+import net.minecraft.client.Minecraft;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
+import net.minecraft.resources.ResourceLocation;
+import net.lax1dude.eaglercraft.v1_8.log4j.LogManager;
+import net.lax1dude.eaglercraft.v1_8.log4j.Logger;
+
+import java.io.DataInputStream;
+import java.io.EOFException;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Map.Entry;
+
+import static net.lax1dude.eaglercraft.v1_8.internal.PlatformOpenGL._wglBufferData;
+import static net.lax1dude.eaglercraft.v1_8.opengl.RealOpenGLEnums.*;
+
+public class EaglerMeshLoader implements ResourceManagerReloadListener {
+
+    private static final Logger logger = LogManager.getLogger("EaglerMeshLoader");
+
+    private static final Map<ResourceLocation, HighPolyMesh> meshCache = new HashMap<>();
+
+    public static HighPolyMesh getEaglerMesh(ResourceLocation meshLoc) {
+        HighPolyMesh theMesh = meshCache.get(meshLoc);
+        if (theMesh == null) {
+            theMesh = new HighPolyMesh();
+            reloadMesh(meshLoc, theMesh, Minecraft.getInstance().getResourceManager());
+            meshCache.put(meshLoc, theMesh);
+        }
+        return theMesh;
+    }
+
+    private static void reloadMesh(ResourceLocation meshLoc, HighPolyMesh meshStruct, ResourceManager resourceManager) {
+        IntBuffer up1 = null;
+        try {
+            int intsOfVertex, intsOfIndex, intsTotal, stride;
+            try (DataInputStream dis = new DataInputStream(openResource(resourceManager, meshLoc))) {
+                byte[] header = new byte[8];
+                dis.read(header);
+                if (!Arrays.equals(header, new byte[]{(byte) 33, (byte) 69, (byte) 65, (byte) 71, (byte) 36,
+                        (byte) 109, (byte) 100, (byte) 108})) {
+                    throw new IOException("File is not an eaglercraft high-poly mesh!");
+                }
+
+                char CT = (char) dis.read();
+
+                if (CT == 'C') {
+                    meshStruct.hasTexture = false;
+                } else if (CT == 'T') {
+                    meshStruct.hasTexture = true;
+                } else {
+                    throw new IOException("Unsupported mesh type '" + CT + "'!");
+                }
+
+                dis.skipBytes(dis.readUnsignedShort());
+
+                meshStruct.vertexCount = dis.readInt();
+                meshStruct.indexCount = dis.readInt();
+                int byteIndexCount = meshStruct.indexCount;
+                if (byteIndexCount % 2 != 0) {
+                    byteIndexCount += 1;
+                }
+                stride = meshStruct.hasTexture ? 24 : 16;
+
+                intsOfVertex = meshStruct.vertexCount * stride / 4;
+                intsOfIndex = byteIndexCount / 2;
+                intsTotal = intsOfIndex + intsOfVertex;
+                up1 = EagRuntime.allocateIntBuffer(intsTotal);
+
+                for (int i = 0; i < intsTotal; ++i) {
+                    int ch1 = dis.read();
+                    int ch2 = dis.read();
+                    int ch3 = dis.read();
+                    int ch4 = dis.read();
+                    if ((ch1 | ch2 | ch3 | ch4) < 0) throw new EOFException();
+                    up1.put((ch4 << 24) + (ch3 << 16) + (ch2 << 8) + (ch1 << 0));
+                }
+
+            }
+
+            if (meshStruct.vertexArray == null) {
+                meshStruct.vertexArray = EaglercraftGPU.createGLVertexArray();
+            }
+            if (meshStruct.vertexBuffer == null) {
+                meshStruct.vertexBuffer = EaglercraftGPU.createGLArrayBuffer();
+            }
+            if (meshStruct.indexBuffer == null) {
+                meshStruct.indexBuffer = EaglercraftGPU.createGLElementArrayBuffer();
+            }
+
+            up1.position(0).limit(intsOfVertex);
+
+            EaglercraftGPU.bindVAOGLArrayBufferNow(meshStruct.vertexBuffer);
+            _wglBufferData(GL_ARRAY_BUFFER, up1, GL_STATIC_DRAW);
+
+            EaglercraftGPU.bindGLVertexArray(meshStruct.vertexArray);
+
+            up1.position(intsOfVertex).limit(intsTotal);
+
+            EaglercraftGPU.bindVAOGLElementArrayBufferNow(meshStruct.indexBuffer);
+            _wglBufferData(GL_ELEMENT_ARRAY_BUFFER, up1, GL_STATIC_DRAW);
+
+            EaglercraftGPU.enableVertexAttribArray(0);
+            EaglercraftGPU.vertexAttribPointer(0, 3, GL_FLOAT, false, stride, 0);
+
+            if (meshStruct.hasTexture) {
+                EaglercraftGPU.enableVertexAttribArray(1);
+                EaglercraftGPU.vertexAttribPointer(1, 2, GL_FLOAT, false, stride, 16);
+            }
+
+            EaglercraftGPU.enableVertexAttribArray(meshStruct.hasTexture ? 2 : 1);
+            EaglercraftGPU.vertexAttribPointer(meshStruct.hasTexture ? 2 : 1, 4, GL_BYTE, true, stride, 12);
+        } catch (Throwable ex) {
+            if (meshStruct.vertexArray != null) {
+                EaglercraftGPU.destroyGLVertexArray(meshStruct.vertexArray);
+                meshStruct.vertexArray = null;
+            }
+            if (meshStruct.vertexBuffer != null) {
+                EaglercraftGPU.destroyGLArrayBuffer(meshStruct.vertexBuffer);
+                meshStruct.vertexBuffer = null;
+            }
+            if (meshStruct.indexBuffer != null) {
+                EaglercraftGPU.destroyGLElementArrayBuffer(meshStruct.indexBuffer);
+                meshStruct.indexBuffer = null;
+            }
+
+            meshStruct.vertexCount = 0;
+            meshStruct.indexCount = 0;
+            meshStruct.hasTexture = false;
+
+            logger.error("Failed to load eaglercraft high-poly mesh: \"{}\"", meshLoc);
+            logger.error(ex);
+        } finally {
+            if (up1 != null) {
+                EagRuntime.freeIntBuffer(up1);
+            }
+        }
+    }
+
+    @Override
+    public void onResourceManagerReload(ResourceManager var1) {
+        for (Entry<ResourceLocation, HighPolyMesh> meshEntry : meshCache.entrySet()) {
+            reloadMesh(meshEntry.getKey(), meshEntry.getValue(), var1);
+        }
+    }
+
+
+	// 1.19.4 port: ResourceManager.getResource(...) returns Optional<Resource> and
+	// Resource.open() throws IOException, so it cannot be chained through
+	// Optional.map (which cannot propagate a checked exception).
+	private static java.io.InputStream openResource(ResourceManager resourceManager, ResourceLocation meshLoc) throws IOException {
+		net.minecraft.server.packs.resources.Resource res = resourceManager.getResource(meshLoc)
+			.orElseThrow(() -> new java.util.NoSuchElementException("Missing high-poly mesh resource: " + meshLoc));
+		return res.open();
+	}
+}

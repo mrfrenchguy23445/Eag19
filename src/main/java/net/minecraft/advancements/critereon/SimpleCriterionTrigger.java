@@ -1,0 +1,72 @@
+package net.minecraft.advancements.critereon;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import com.google.gson.JsonObject;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Predicate;
+import net.minecraft.advancements.CriterionTrigger;
+import net.minecraft.server.PlayerAdvancements;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.storage.loot.LootContext;
+
+public abstract class SimpleCriterionTrigger<T extends AbstractCriterionTriggerInstance> implements CriterionTrigger<T> {
+   private final Map<PlayerAdvancements, Set<CriterionTrigger.Listener<T>>> players = Maps.newIdentityHashMap();
+
+   @Override
+   public final void addPlayerListener(PlayerAdvancements param0, CriterionTrigger.Listener<T> param1) {
+      this.players.computeIfAbsent(param0, l_param0 -> Sets.newHashSet()).add(param1);
+   }
+
+   @Override
+   public final void removePlayerListener(PlayerAdvancements param0, CriterionTrigger.Listener<T> param1) {
+      Set<CriterionTrigger.Listener<T>> var3 = this.players.get(param0);
+      if (var3 != null) {
+         var3.remove(param1);
+         if (var3.isEmpty()) {
+            this.players.remove(param0);
+         }
+      }
+   }
+
+   @Override
+   public final void removePlayerListeners(PlayerAdvancements param0) {
+      this.players.remove(param0);
+   }
+
+   protected abstract T createInstance(JsonObject var1, EntityPredicate.Composite var2, DeserializationContext var3);
+
+   public final T createInstance(JsonObject param0, DeserializationContext param1) {
+      EntityPredicate.Composite var3 = EntityPredicate.Composite.fromJson(param0, "player", param1);
+      return this.createInstance(param0, var3, param1);
+   }
+
+   protected void trigger(ServerPlayer param0, Predicate<T> param1) {
+      PlayerAdvancements var3 = param0.getAdvancements();
+      Set<CriterionTrigger.Listener<T>> var4 = this.players.get(var3);
+      if (var4 != null && !var4.isEmpty()) {
+         LootContext var5 = EntityPredicate.createContext(param0, param0);
+         List<CriterionTrigger.Listener<T>> var6 = null;
+
+         for (CriterionTrigger.Listener<T> var8 : var4) {
+            T var9 = var8.getTriggerInstance();
+            if (param1.test(var9) && var9.getPlayerPredicate().matches(var5)) {
+               if (var6 == null) {
+                  var6 = Lists.newArrayList();
+               }
+
+               var6.add(var8);
+            }
+         }
+
+         if (var6 != null) {
+            for (CriterionTrigger.Listener<T> var8 : var6) {
+               var8.run(var3);
+            }
+         }
+      }
+   }
+}

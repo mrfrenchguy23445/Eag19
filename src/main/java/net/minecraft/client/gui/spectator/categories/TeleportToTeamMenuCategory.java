@@ -1,0 +1,131 @@
+package net.minecraft.client.gui.spectator.categories;
+
+import com.mojang.authlib.GameProfile;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiComponent;
+import net.minecraft.client.gui.components.PlayerFaceRenderer;
+import net.minecraft.client.gui.components.spectator.SpectatorGui;
+import net.minecraft.client.gui.spectator.SpectatorMenu;
+import net.minecraft.client.gui.spectator.SpectatorMenuCategory;
+import net.minecraft.client.gui.spectator.SpectatorMenuItem;
+import net.minecraft.client.multiplayer.PlayerInfo;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.scores.PlayerTeam;
+import net.minecraft.world.scores.Scoreboard;
+
+public class TeleportToTeamMenuCategory implements SpectatorMenuCategory, SpectatorMenuItem {
+   private static final Component TELEPORT_TEXT = Component.translatable("spectatorMenu.team_teleport");
+   private static final Component TELEPORT_PROMPT = Component.translatable("spectatorMenu.team_teleport.prompt");
+   private final List<SpectatorMenuItem> items;
+
+   public TeleportToTeamMenuCategory() {
+      Minecraft var1 = Minecraft.getInstance();
+      this.items = createTeamEntries(var1, var1.level.getScoreboard());
+   }
+
+   private static List<SpectatorMenuItem> createTeamEntries(Minecraft param0, Scoreboard param1) {
+      return param1.getPlayerTeams().stream().flatMap(l_param1 -> TeleportToTeamMenuCategory.TeamSelectionItem.create(param0, l_param1).stream()).toList();
+   }
+
+   @Override
+   public List<SpectatorMenuItem> getItems() {
+      return this.items;
+   }
+
+   @Override
+   public Component getPrompt() {
+      return TELEPORT_PROMPT;
+   }
+
+   @Override
+   public void selectItem(SpectatorMenu param0) {
+      param0.selectCategory(this);
+   }
+
+   @Override
+   public Component getName() {
+      return TELEPORT_TEXT;
+   }
+
+   @Override
+   public void renderIcon(PoseStack param0, float param1, int param2) {
+      RenderSystem.setShaderTexture(0, SpectatorGui.SPECTATOR_LOCATION);
+      GuiComponent.blit(param0, 0, 0, 16.0F, 0.0F, 16, 16, 256, 256);
+   }
+
+   @Override
+   public boolean isEnabled() {
+      return !this.items.isEmpty();
+   }
+
+   static class TeamSelectionItem implements SpectatorMenuItem {
+      private final PlayerTeam team;
+      private final ResourceLocation iconSkin;
+      private final List<PlayerInfo> players;
+
+      private TeamSelectionItem(PlayerTeam param0, List<PlayerInfo> param1, ResourceLocation param2) {
+         this.team = param0;
+         this.players = param1;
+         this.iconSkin = param2;
+      }
+
+      public static Optional<SpectatorMenuItem> create(Minecraft param0, PlayerTeam param1) {
+         List<PlayerInfo> var2 = new ArrayList<>();
+
+         for (String var4 : param1.getPlayers()) {
+            PlayerInfo var5 = param0.getConnection().getPlayerInfo(var4);
+            if (var5 != null && var5.getGameMode() != GameType.SPECTATOR) {
+               var2.add(var5);
+            }
+         }
+
+         if (var2.isEmpty()) {
+            return Optional.empty();
+         }
+
+         GameProfile var3 = var2.get(RandomSource.create().nextInt(var2.size())).getProfile();
+         ResourceLocation var4 = param0.getSkinManager().getInsecureSkinLocation(var3);
+         return Optional.of(new TeleportToTeamMenuCategory.TeamSelectionItem(param1, var2, var4));
+      }
+
+      @Override
+      public void selectItem(SpectatorMenu param0) {
+         param0.selectCategory(new TeleportToPlayerMenuCategory(this.players));
+      }
+
+      @Override
+      public Component getName() {
+         return this.team.getDisplayName();
+      }
+
+      @Override
+      public void renderIcon(PoseStack param0, float param1, int param2) {
+         Integer var4 = this.team.getColor().getColor();
+         if (var4 != null) {
+            float var5 = (var4 >> 16 & 0xFF) / 255.0F;
+            float var6 = (var4 >> 8 & 0xFF) / 255.0F;
+            float var7 = (var4 & 0xFF) / 255.0F;
+            GuiComponent.fill(param0, 1, 1, 15, 15, Mth.color(var5 * param1, var6 * param1, var7 * param1) | param2 << 24);
+         }
+
+         RenderSystem.setShaderTexture(0, this.iconSkin);
+         RenderSystem.setShaderColor(param1, param1, param1, param2 / 255.0F);
+         PlayerFaceRenderer.draw(param0, 2, 2, 12);
+         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+      }
+
+      @Override
+      public boolean isEnabled() {
+         return true;
+      }
+   }
+}
