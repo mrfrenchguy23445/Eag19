@@ -44,12 +44,17 @@ mc-lwjgl-stb = "org.lwjgl:lwjgl-stb:3.3.1"
 mc-lwjgl-tinyfd = "org.lwjgl:lwjgl-tinyfd:3.3.1"
 mc-lwjgl-openal = "org.lwjgl:lwjgl-openal:3.3.1"
 mc-jetbrains-annotations = "org.jetbrains:annotations:24.0.1"
-
 [bundles]
 common = [
 	"hppc",
 	"jsr305",
 	"lang3"
+]
+
+via = [
+	"viaversion",
+	"viabackwards",
+	"snakeyaml"
 ]
 
 mc1194 = [

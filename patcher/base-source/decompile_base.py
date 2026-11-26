@@ -1,32 +1,4 @@
 #!/usr/bin/env python3
-"""Build the vanilla Minecraft 1.19.4 Java tree used as the patcher base.
-
-The patcher never ships decompiled Minecraft source. This helper recreates the
-exact base tree from inputs you own:
-
-* the official ``client.jar`` for 1.19.4,
-* Mojang's official ``client.txt`` ProGuard mappings for the same version,
-* pinned SpecialSource and Vineflower releases from Maven Central.
-
-The jar is remapped to Mojang's official class, method and field names, then
-decompiled with pinned settings. Only the packages the Eag19 bundle touches are
-kept: ``net/minecraft`` and ``com/mojang/{blaze3d,realmsclient,math}``.
-
-Everything is byte-for-byte reproducible for a given set of inputs, which is
-what lets the source-patch bundle bind to the base tree's manifest hash.
-
-Example::
-
-    python3 patcher/base-source/decompile_base.py \
-      --client-jar client.jar \
-      --expected-client-jar-sha256 <sha256> \
-      --mappings client.txt \
-      --expected-mappings-sha256 <sha256> \
-      --output /tmp/1.19.4-java
-
-Tool pins are checked unconditionally; pass ``--specialsource-jar`` and
-``--vineflower-jar`` only to point at local copies of the pinned releases.
-"""
 
 from __future__ import annotations
 
@@ -42,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "source-patches"))
 
-import export_source_patches as patches  # noqa: E402
+import export_source_patches as patches
 
 DEFAULT_SPECIALSOURCE_SHA256 = (
     "afabcba81cd474c5b21abdfe1bbc3888f70a32e782c03bffe13510078fa45a26"
@@ -66,8 +38,7 @@ KEEP_PREFIXES = (
     "com/mojang/math",
 )
 
-# Kept identical between releases so the generated tree, and therefore the
-# bundle's base manifest, stays reproducible.
+
 VINEFLOWER_ARGS = ("-dgs=1", "-hdc=0", "-asc=1", "-rsy=1", "-log=WARN")
 SPECIALSOURCE_ARGS = ("--kill-lvt",)
 

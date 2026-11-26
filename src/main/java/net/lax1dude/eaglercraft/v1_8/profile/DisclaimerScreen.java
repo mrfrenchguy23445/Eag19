@@ -42,7 +42,7 @@ public class DisclaimerScreen extends Screen {
      * {@link Font#split}.
      */
     private static final String[] PARAGRAPHS = {
-            "This build of Eaglercraft 1.19.4 was NOT made by lax1dude or PeytonPlays.",
+            "This build of Eaglercraft 1.19.4 was NOT made by lax1dude or PeytonPlayz.",
             "Lax1dude and PeytonPlays are the authors of the original Eaglercraft. This is "
                     + "a separate, unofficial port of their work, and it is not affiliated with, "
                     + "endorsed by, or supported by either of them.",
@@ -55,13 +55,11 @@ public class DisclaimerScreen extends Screen {
         super(TITLE);
     }
 
-    /** Whether the player has already been shown the warning in this browser. */
     public static boolean isAcknowledged() {
         try {
             byte[] data = EagRuntime.getStorage(STORAGE_KEY);
             return data != null && data.length > 0 && data[0] == 1;
         } catch (Throwable t) {
-            // A storage failure must not trap the player on this screen.
             return false;
         }
     }

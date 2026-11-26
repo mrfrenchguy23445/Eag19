@@ -10,15 +10,6 @@ import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.network.chat.Component;
 import net.minecraft.client.resources.language.I18n;
 
-/**
- * Shown for a beat while the client joins a server named by the host page
- * ({@code ?server=...}).
- *
- * <p>The address is handed to {@link ConnectScreen} verbatim, scheme and all,
- * so a {@code ws://} / {@code wss://} / {@code vanilla://} URL survives the
- * trip. A bare {@code host:port} is upgraded to {@code wss://} by
- * {@code Connection.normalizeWebSocketURI}.</p>
- */
 public class AutoJoinScreen extends Screen {
 
     private final String address;
@@ -29,7 +20,6 @@ public class AutoJoinScreen extends Screen {
         this.address = address;
     }
 
-    /** The address this screen will connect to. */
     public String getAddress() {
         return this.address;
     }

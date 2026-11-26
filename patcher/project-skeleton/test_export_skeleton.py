@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Focused tests for the deterministic project skeleton tool."""
 
 from __future__ import annotations
 
@@ -13,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import export_skeleton as sk  # noqa: E402
+import export_skeleton as sk
 
 
 class GlobTests(unittest.TestCase):

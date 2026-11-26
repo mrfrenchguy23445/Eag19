@@ -30,44 +30,16 @@ sourceSets {
 	}
 }
 
-// No project-level repositories: the root build's allprojects block points every
-// project at gradle/local-libs, which vendors the patched TeaVM toolchain.
+
 
 configurations.configureEach {
-	// The game vendors both Gson and SLF4J under src/main/java; pulling the
-	// desktop jars in as well makes TeaVM resolve the wrong copies and drags in
-	// reflection that this classlib cannot link.
 	exclude(group = "com.google.code.gson", module = "gson")
 	exclude(group = "org.slf4j")
 	exclude(group = "org.joml")
-	// Same shadowing mechanism for three more vendored libraries:
-	//  - com.mojang:logging carries its own LogUtils (StackWalker-based caller
-	//    lookup) which shadows the vendored WASM-GC-safe copy on the TeaVM
-	//    classpath, and drags log4j-slf4j2-impl/log4j-api/log4j-core in with
-	//    it. Every user of that package (com.mojang.logging.LogUtils) resolves
-	//    the vendored copy, and jdk-shims supplies the small log4j2-API surface
-	//    netty's Log4J2Logger needs.
-	//  - org.apache.logging.log4j:* is only referenced by the excluded bridge
-	//    and by netty, which reaches it through the jdk-shims stubs above.
-	//  - guava 31.0.1-jre (via authlib/datafixerupper/patchy) shadows the
-	//    vendored com.google.common.** copies -- the real Queues
-	//    returns ConcurrentLinkedQueue while callers compiled against the
-	//    vendored shim expect the LinkedList descriptor, which TeaVM then
-	//    reports as "Method ... was not found". The vendored copy wins once
-	//    the real jars are gone.
-	//  - text2speech is a jna/osgi stack with platform narrator
-	//    implementations (NarratorMac/NarratorWindows/NarratorLinux all drag
-	//    jna reflection that the classlib cannot link). jdk-shims supplies
-	//    the Narrator interface both callers need; excluding the jar makes
-	//    that copy win the same way it wins in the desktop target.
 	exclude(group = "com.mojang", module = "logging")
 	exclude(group = "org.apache.logging.log4j")
 	exclude(group = "com.google.guava")
 	exclude(group = "com.mojang", module = "text2speech")
-	//  - oshi-core (its only TeaVM-visible consumer, the CPU metrics sampler,
-	//    is ported to a WASM-safe stub) and jna (which oshi and text2speech
-	//    reach): both are jna-native library-detection stacks that cannot link
-	//    against this classlib and cannot run in a browser.
 	exclude(group = "com.github.oshi")
 	exclude(group = "net.java.dev.jna")
 }
@@ -79,14 +51,10 @@ dependencies {
 	implementation(libs.jorbis)
 	implementation(libs.bundles.common)
 	implementation(libs.bundles.mc1194)
-	// The vendored guava sources compile against these annotation-only jars;
-	// they used to arrive transitively through the real guava that is now
-	// excluded above, so they are pinned here at the versions guava 31.0.1
-	// declares.
+	implementation(libs.bundles.via)
 	implementation("com.google.errorprone:error_prone_annotations:2.7.1")
 	implementation("org.checkerframework:checker-qual:3.12.0")
 	implementation("com.google.j2objc:j2objc-annotations:1.3")
-	// The classlib overrides and java.* shims this target links against.
 	implementation(project(":jdk-shims"))
 }
 
@@ -97,20 +65,12 @@ teavm {
 	wasmGC {
 		targetFileName = "../$wasmOutputFileName"
 		optimization = OptimizationLevel.AGGRESSIVE
-		// Link in a dedicated compiler JVM: the aggressive 1.19.4 link does not fit
-		// in the Gradle daemon's default 1.5g heap.
 		outOfProcess = true
 		fastGlobalAnalysis = false
-		// 6g: the 4g link OOM'd (13.9 GB machine; the 1.5 g Gradle daemon eats
-		// into the same physical budget). -Xmx is passed through verbatim by
-		// BuildDaemon.start.
 		processMemory = 6144
 		mainClass = "net.lax1dude.eaglercraft.v1_8.internal.wasm_gc_teavm.MainClass"
 		outputDir = file(wasmFolder)
 		properties = mapOf("java.util.TimeZone.autodetect" to "true")
-		// Release compiler settings. TeaVM has no level above AGGRESSIVE, so
-		// shipping builds drop debug output and disassembly; scripts/optimize-wasm.mjs
-		// applies Binaryen -Oz afterwards when wasm-opt is available.
 		obfuscated = true
 		sourceMap = false
 		debugInformation = false
@@ -120,15 +80,7 @@ teavm {
 	}
 }
 
-// TeaVM resolves org.teavm.classlib.* from its own classlib jar ahead of the
-// project's runtimeClasspath, which meant the patched TFile.toPath() in
-// jdk-shims lost to the stock classlib copy. Put the shim jar first so every
-// relocated classlib override wins; it is otherwise a strict superset of the
-// same classes and adds no duplicate public API.
-//
-// The same first-wins rule applies to local WASM-safe source overrides: put
-// main output ahead of dependency jars so those replacements beat upstream
-// bytecode at link time.
+
 val shimJar = project(":jdk-shims").layout.buildDirectory.file("libs/jdk-shims.jar")
 val wasmOutputFile = file("$wasmFolder/$wasmOutputFileName")
 val optimizeWasmScript = rootProject.file("scripts/optimize-wasm.mjs")
@@ -137,13 +89,11 @@ tasks.named<org.teavm.gradle.tasks.GenerateWasmGCTask>("generateWasmGC") {
 	dependsOn(":jdk-shims:jar", "classes")
 
 	doFirst {
-		// Debug output shifts function offsets and is not shipped any more.
 		file("$wasmFolder/$wasmOutputFileName.teadbg").delete()
 		file("$wasmFolder/$wasmOutputFileName.wat").delete()
 	}
 
-	// Optional post-link size pass. Set WASM_OPT to a wasm-opt binary, or put it
-	// on PATH; without it the script leaves TeaVM's output untouched.
+
 	doLast {
 		val nodeName = if (System.getProperty("os.name").lowercase().contains("windows")) "node.exe" else "node"
 		val node = System.getenv("PATH").orEmpty()

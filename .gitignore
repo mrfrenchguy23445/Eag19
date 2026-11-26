@@ -34,8 +34,6 @@ bin
 /.ref-src
 scripts/__pycache__/
 /teavm-patches/out/
-
-# Patcher release inputs and generated bundles
 /patcher/dist/
 /patcher/out/
 /patcher/**/__pycache__/
@@ -60,11 +58,6 @@ build/
 .gradle/
 .aider*
 Eag190-offline.zip
-
-# Local-only client-side V5/Via translation.
-# ViaVersion and ViaBackwards are GPLv3, so their binaries, source archives,
-# assets and WASM-GC adaptations stay on the maintainer's machine. The repo
-# keeps only the platform-neutral EaglerProtocolBridge seam.
 /gradle/local-libs/com/viaversion/
 /gradle/local-libs/org/yaml/
 /gradle/local-libs/com/google/code/gson/gson-parent/2.8.9/

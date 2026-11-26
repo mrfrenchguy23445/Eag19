@@ -1,38 +1,4 @@
 #!/usr/bin/env python3
-"""Export, verify, and apply deterministic Java source patch bundles.
-
-The public Eag19 repository cannot carry Minecraft-derived source. This tool
-splits a working game tree into two things:
-
-* a *base* tree, which the person applying the patches supplies (a decompiled
-  Minecraft 1.19.4 tree they are entitled to use), and
-* a *bundle*, which contains only the difference between that base tree and
-  the maintained tree.
-
-Bundles are deterministic. Manifests and payload hashes bind every operation
-to both trees, so a bundle produced from one base tree cannot be silently
-applied to another. Records are sorted, JSON is canonical, and ZIP members use
-a fixed timestamp.
-
-Examples::
-
-    python3 patcher/source-patches/export_source_patches.py export \
-      --base /path/to/vanilla-source \
-      --final src/main/java \
-      --output /tmp/source-patch \
-      --archive /tmp/source-patch.zip
-
-    python3 patcher/source-patches/export_source_patches.py verify \
-      --bundle /tmp/source-patch.zip \
-      --base /path/to/vanilla-source \
-      --expected-bundle-sha256 <sha256>
-
-    python3 patcher/source-patches/export_source_patches.py apply \
-      --bundle /tmp/source-patch.zip \
-      --base /path/to/vanilla-source \
-      --output /tmp/patched-java \
-      --expected-bundle-sha256 <sha256>
-"""
 
 from __future__ import annotations
 
@@ -85,7 +51,7 @@ DELTA_HUNK_KEYS = {"start", "deleted", "inserted_b64", "inserted_lines"}
 
 
 class BundleError(RuntimeError):
-    """A fail-closed input, manifest, operation, or fidelity error."""
+    pass
 
 
 def canonical_json(value: object) -> bytes:
@@ -200,7 +166,7 @@ def normalize_rel(raw: object, *, field: str = "path") -> str:
 
 
 def scan_source(root: Path) -> dict[str, dict[str, object]]:
-    """Scan a strict Java-only source root and return its manifest map."""
+
 
     root = Path(root)
     _reject_symlink_ancestors(root, label="source root")
@@ -357,7 +323,7 @@ def _unpack_zip(archive: Path, destination: Path) -> None:
 
 
 def materialize_bundle(bundle: Path) -> tuple[Path, object]:
-    """Return (bundle directory, temporary directory or None)."""
+
 
     bundle = Path(bundle)
     _reject_symlink_ancestors(bundle, label="bundle")
@@ -440,7 +406,7 @@ def _assert_tree_manifest(root: Path, expected: dict[str, dict[str, object]], *,
 
 
 def _delta_object(before: bytes, after: bytes) -> dict[str, object]:
-    """Build a deterministic line delta from two source files."""
+
 
     before_lines = before.splitlines(keepends=True)
     after_lines = after.splitlines(keepends=True)
@@ -786,7 +752,7 @@ def apply_bundle(
     output: Path,
     expected_bundle_sha256: str | None = None,
 ) -> dict[str, object]:
-    """Verify and apply into staging, promoting only after fidelity passes."""
+
 
     output = Path(output)
     bundle_digest = _assert_expected_bundle_sha256(Path(bundle), expected_bundle_sha256)
@@ -859,7 +825,7 @@ def export_bundle(
     base_label: str = "vanilla-source",
     final_label: str = "game-source",
 ) -> dict[str, object]:
-    """Create a deterministic typed operation bundle from two source roots."""
+
 
     base_label = _validate_root_label(base_label, label="base label")
     final_label = _validate_root_label(final_label, label="final label")

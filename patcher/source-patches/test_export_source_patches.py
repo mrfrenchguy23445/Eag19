@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Focused tests for the deterministic source patch bundle tool."""
 
 from __future__ import annotations
 
@@ -11,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import export_source_patches as sp  # noqa: E402
+import export_source_patches as sp
 
 
 def write_tree(root: Path, files: dict[str, bytes]) -> None:

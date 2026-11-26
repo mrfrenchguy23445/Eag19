@@ -1,7 +1,3 @@
-# Tracked paths copied into the distributable project skeleton.
-# Minecraft-derived Java is absent: the patch bundle reconstructs
-# src/main/java/net/minecraft and com/mojang/{blaze3d,realmsclient,math}
-# from the base tree supplied by whoever runs the patcher.
 .gitattributes
 .gitignore
 .github

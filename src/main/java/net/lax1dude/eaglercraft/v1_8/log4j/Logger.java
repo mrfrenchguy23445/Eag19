@@ -19,15 +19,7 @@ package net.lax1dude.eaglercraft.v1_8.log4j;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-/**
- * Eaglercraft's log4j-style logging shim.
- *
- * <p>Ported from the 1.8 tree. The original reached into {@code EagRuntime} for the thread
- * name and stack traces and into {@code PlatformRuntime} to forward browser JS exceptions.
- * Both of those are 1.8-only and are not part of the pruned 1.19.4 lax1dude closure, so
- * this copy uses {@link Thread#getName()} / {@link Throwable#printStackTrace} instead and
- * keeps the exact public API the rest of the port expects.
- */
+
 public class Logger {
 
 	public final String loggerName;

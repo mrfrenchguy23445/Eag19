@@ -27,6 +27,7 @@ import net.lax1dude.eaglercraft.v1_8.internal.ContextLostError;
 import net.lax1dude.eaglercraft.v1_8.internal.PlatformApplication;
 import net.lax1dude.eaglercraft.v1_8.internal.PlatformRuntime;
 import net.lax1dude.eaglercraft.v1_8.internal.wasm_gc_teavm.opts.JSEaglercraftXOptsRoot;
+import net.lax1dude.eaglercraft.v1_8.socket.via.EaglerViaBridge;
 import net.minecraft.client.main.Main;
 
 public class ClientMain {
@@ -82,6 +83,8 @@ public class ClientMain {
 				systemErr.println("ClientMain: [ERROR] eaglercraftx cannot start");
 				return;
 			}
+
+			EaglerViaBridge.install();
 
 			systemOut.println("ClientMain: [INFO] launching eaglercraftx main thread");
 

@@ -22,30 +22,6 @@ import net.minecraft.world.entity.LivingEntity;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 
-/**
- * The local player's profile editor: a username field, a skin selector and a
- * live 3D preview of the player wearing the selected skin.
- *
- * <p>This is the part of Eaglercraft 1.8's {@code GuiScreenEditProfile} that
- * makes sense here. The import/export screens, the FNAW high-poly skin models,
- * the custom skin upload, the cape picker and the skin/cape network sync are
- * not part of this port; every cape is off and the only thing to choose is the
- * name and which of the {@link DefaultSkins} presets to wear.</p>
- *
- * <p><b>Commit semantics.</b> The username and the skin are staged locally and
- * applied on <em>Done</em> alone, because a half-typed name is not a name and
- * merely previewing a skin should not silently overwrite the stored one.
- * <em>Cancel</em> and <em>Escape</em> return without touching the profile.</p>
- *
- * <p><b>Preview rendering.</b> There is no {@code Level} behind the title
- * screen, so there is no player entity to hand to the render dispatcher. The
- * preview therefore bakes a {@link PlayerModel} directly and reproduces the
- * matrix chain {@code InventoryScreen.renderEntityInInventory} produces (model
- * view pushed to z=1000, model anchored at z=-950, negative z scale, a
- * 180-degree roll) followed by the transforms {@code LivingEntityRenderer}
- * applies before its model draws (a yaw, the x/y flip, the 0.9375 player scale
- * and the 1.501 shin offset).</p>
- */
 public class EditProfileScreen extends Screen {
 
     private static final Component TITLE = Component.translatable("eagler.profile.title");
@@ -95,11 +71,6 @@ public class EditProfileScreen extends Screen {
     @Nullable
     private PlayerModel<LivingEntity> slimModel;
 
-    /**
-     * The skin the &lt; / &gt; controls move through, committed on Done. Reading and
-     * writing {@link EaglerProfile} directly would make opening this screen
-     * overwrite a stored skin even when the player cancels.
-     */
     private DefaultSkins pendingSkin;
 
     public EditProfileScreen(Screen parent) {

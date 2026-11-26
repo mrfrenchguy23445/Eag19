@@ -1,28 +1,4 @@
 #!/usr/bin/env python3
-"""Reconstruct a complete Eag19 project from a base tree and authenticated inputs.
-
-Inputs:
-
-* ``--base-source``: a decompiled Minecraft 1.19.4 Java tree you are entitled
-  to use.
-* ``--bundle``: the source-patch bundle exported from that same base tree.
-* ``--skeleton``: the project skeleton archive (build files, browser platform,
-  vendored libraries, documentation).
-
-The result is a normal Gradle workspace at ``--output``. Every input is bound
-to an externally supplied SHA-256; nothing is promoted until the reconstructed
-Java tree matches the bundle's final manifest exactly.
-
-Example::
-
-    python3 patcher/prepare_project.py \
-      --base-source /path/to/vanilla-source \
-      --bundle eag19-source-patch.zip \
-      --expected-bundle-sha256 <sha256> \
-      --skeleton eag19-skeleton.zip \
-      --expected-skeleton-sha256 <sha256> \
-      --output /tmp/eag19-project
-"""
 
 from __future__ import annotations
 
@@ -40,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "source-patches"))
 
-import export_source_patches as patches  # noqa: E402
+import export_source_patches as patches
 
 SKELETON_FORMAT = "eag19-project-skeleton-v1"
 SKELETON_MANIFEST = "SKELETON-MANIFEST.json"

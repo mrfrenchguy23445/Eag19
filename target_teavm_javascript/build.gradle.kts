@@ -66,7 +66,6 @@ tasks.withType<JavaCompile> {
 tasks.named<GenerateJavaScriptTask>("generateJavaScript") {
 	doLast {
 		try {
-			// NOTE: This step may break at any time, and is not required for 99% of browsers
 
 			var phile = file("$jsFolder/$jsFileName")
 			var dest = phile.readText()

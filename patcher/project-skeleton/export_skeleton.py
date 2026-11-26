@@ -1,21 +1,4 @@
 #!/usr/bin/env python3
-"""Build the deterministic project skeleton used by the Eag19 patcher.
-
-The skeleton contains every tracked file that is not Minecraft-derived: build
-scripts, the TeaVM targets, the browser platform code, vendored third-party
-sources, and documentation. It deliberately excludes the game Java tree, which
-the patch bundle reconstructs from a base tree supplied by the user.
-
-Only files tracked by Git are packaged, so a dirty build output directory can
-never leak into a release archive.
-
-Examples::
-
-    python3 patcher/project-skeleton/export_skeleton.py \
-      --output /tmp/eag19-project-skeleton.zip
-
-    python3 patcher/project-skeleton/export_skeleton.py --print-manifest
-"""
 
 from __future__ import annotations
 
@@ -112,7 +95,7 @@ _GLOB_CACHE: dict[str, re.Pattern[str]] = {}
 
 
 def _glob_regex(pattern: str) -> re.Pattern[str]:
-    """Translate a POSIX glob into a regex where ``*`` never crosses ``/``."""
+
     cached = _GLOB_CACHE.get(pattern)
     if cached is not None:
         return cached
