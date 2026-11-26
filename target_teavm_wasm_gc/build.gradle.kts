@@ -54,7 +54,7 @@ dependencies {
 	implementation(libs.bundles.via)
 	implementation("com.google.errorprone:error_prone_annotations:2.7.1")
 	implementation("org.checkerframework:checker-qual:3.12.0")
-	implementation("com.google.j2objc:j2objc-annotations:1.3")
+	implementation("com.google.j2objc:j2objc-annotations:3.1")
 	implementation(project(":jdk-shims"))
 }
 
