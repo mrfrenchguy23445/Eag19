@@ -46,6 +46,6 @@ ram prices
 CPU prices
 etc.
 
-All i wanna say is that Ai is fine only if it's disclosed i hope you can understand that ai was mostly used in the making of Eag19 (if you guys still wouldn't care about what i said go to norshares port i think it's human) Here's the link [norshare-eag19](https://norsharestudios.net)
+All i wanna say is that Ai is fine only if it's disclosed i hope you can understand that ai was mostly used in the making of Eag19 (if you guys still wouldn't care about what i said go to norshares port i think it's human) Here's the link [norshare-eag19](https://norshare.net)
 
 Thank you for taking your time to read the readme see ya!
