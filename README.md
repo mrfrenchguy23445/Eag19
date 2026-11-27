@@ -29,6 +29,13 @@ Development begun in late 2025 and it was an uhh... rough road very annoying thi
    |---teavm-patches (patches done to the compiler teavm)
 ```
 
+## Progress
+- Singleplayer does infact work 
+- Multiplayer does not work
+- Skins work
+- Capes do not work
+- Fast tho 👀
+
 ## Support minecraft
 Even though this project is practically ccracking minecraft via stubbing out it's authorization services YOU should support it devs at mojang spend hours of their own life into these codebases like i myself was BLOWN AWAY the first time i saw the mass of the minecraft codebase. I hope you understand the suffering of mojang buy minecraft if you can please 💖
 
